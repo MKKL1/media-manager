@@ -18,7 +18,9 @@ type MediaIdentityService struct {
 //TODO maybe move calling external APIs for id discovery, so it works for example every 24h, but this seems like better fit
 
 // Resolve Does everything it can to find every id for given media, this includes calling external APIs
-// if null then media doesn't exist in database TODO better return
+// if null then media doesn't exist in database
+// We do it to make sure that we don't query old data
+// TODO better return
 func (r *MediaIdentityService) Resolve(ctx context.Context, id core.ExternalId) (*core.MediaId, error) {
 	logger := zerolog.Ctx(ctx).With().
 		Str("component", "MediaIdentityService").

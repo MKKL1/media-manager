@@ -6,14 +6,17 @@ import (
 )
 
 const (
-	ProviderTMDBTV    = "tmdb:tv"
-	ProviderTMDBMovie = "tmdb:movie"
-	ProviderTVDB      = "tvdb"
-	ProviderIMDB      = "imdb"
-	ProviderAniDB     = "anidb"
-	ProviderMAL       = "mal"
-	ProviderAniList   = "anilist"
-	ProviderWikidata  = "wikidata"
+	ProviderTMDBTV           = "tmdb:tv"
+	ProviderTMDBMovie        = "tmdb:movie"
+	ProviderTMDBSeason       = "tmdb:season"
+	ProviderTMDBEpisode      = "tmdb:episode"
+	ProviderTMDBEpisodeGroup = "tmdb:eg"
+	ProviderTVDB             = "tvdb"
+	ProviderIMDB             = "imdb"
+	ProviderAniDB            = "anidb"
+	ProviderMAL              = "mal"
+	ProviderAniList          = "anilist"
+	ProviderWikidata         = "wikidata"
 )
 
 type ExternalIDSource interface {

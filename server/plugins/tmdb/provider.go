@@ -12,10 +12,11 @@ import (
 )
 
 var (
-	_ movie.Searcher = (*Provider)(nil)
-	_ movie.Fetcher  = (*Provider)(nil)
-	_ tv.Searcher    = (*Provider)(nil)
-	_ tv.Fetcher     = (*Provider)(nil)
+	_ movie.Searcher         = (*Provider)(nil)
+	_ movie.Fetcher          = (*Provider)(nil)
+	_ tv.Searcher            = (*Provider)(nil)
+	_ tv.Fetcher             = (*Provider)(nil)
+	_ tv.EpisodeGroupFetcher = (*Provider)(nil)
 )
 
 type Provider struct {
@@ -184,7 +185,7 @@ func (p *Provider) GetShow(ctx context.Context, id string) (*tv.ProviderShow, er
 	}, nil
 }
 
-func (p *Provider) GetEpisodes(ctx context.Context, id string) ([]tv.ProviderEpisode, error) {
+func (p *Provider) GetEpisodes(ctx context.Context, id string) ([]tv.ProviderSeason, error) {
 	tmdbID, err := strconv.Atoi(id)
 	if err != nil {
 		return nil, fmt.Errorf("invalid tmdb tv id %q: %w", id, err)
@@ -195,7 +196,7 @@ func (p *Provider) GetEpisodes(ctx context.Context, id string) ([]tv.ProviderEpi
 		return nil, fmt.Errorf("tmdb get tv %d (for episodes): %w", tmdbID, err)
 	}
 
-	var allEpisodes []tv.ProviderEpisode
+	var allSeasons []tv.ProviderSeason
 	showExtID := core.NewExternalId(metadata.ProviderTMDBTV, strconv.Itoa(show.ID))
 
 	for _, s := range show.Seasons {
@@ -204,10 +205,12 @@ func (p *Provider) GetEpisodes(ctx context.Context, id string) ([]tv.ProviderEpi
 			return nil, fmt.Errorf("tmdb get season %d: %w", s.SeasonNumber, err)
 		}
 
+		var seasonEpisodes []tv.ProviderEpisode
+
 		for _, ep := range season.Episodes {
 			airDate, _ := parseDate(ep.AirDate)
-			allEpisodes = append(allEpisodes, tv.ProviderEpisode{
-				ExternalID:     core.NewExternalId(metadata.ProviderTMDBTV, strconv.Itoa(ep.ID)),
+			seasonEpisodes = append(seasonEpisodes, tv.ProviderEpisode{
+				ExternalID:     core.NewExternalId(metadata.ProviderTMDBEpisode, strconv.Itoa(ep.ID)),
 				ShowExternalID: showExtID,
 				SeasonNumber:   ep.SeasonNumber,
 				EpisodeNumber:  ep.EpisodeNumber,
@@ -221,9 +224,85 @@ func (p *Provider) GetEpisodes(ctx context.Context, id string) ([]tv.ProviderEpi
 				IsSeasonFinale: ep.EpisodeType == "finale",
 			})
 		}
+
+		allSeasons = append(allSeasons, tv.ProviderSeason{
+			SeasonNumber: season.SeasonNumber,
+			Rating:       nil,
+			VoteCount:    nil,
+			ExternalID:   new(core.NewExternalId(metadata.ProviderTMDBSeason, strconv.Itoa(season.ID))),
+			Title:        new(season.Name),
+			Episodes:     seasonEpisodes,
+		})
 	}
 
-	return allEpisodes, nil
+	return allSeasons, nil
+}
+
+func (p *Provider) GetEpisodeGroups(ctx context.Context, showID string) ([]tv.EpisodeGroup, error) {
+	tmdbID, err := strconv.Atoi(showID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid tmdb tv id %q: %w", showID, err)
+	}
+
+	groups, err := p.client.GetEpisodeGroups(ctx, tmdbID)
+	if err != nil {
+		return nil, fmt.Errorf("tmdb get episode groups %d: %w", tmdbID, err)
+	}
+
+	out := make([]tv.EpisodeGroup, len(groups))
+	for i, g := range groups {
+		out[i] = tv.EpisodeGroup{
+			ID:           g.ID,
+			Name:         g.Name,
+			Description:  g.Description,
+			Type:         tv.EpisodeGroupType(g.Type),
+			EpisodeCount: g.EpisodeCount,
+			GroupCount:   g.GroupCount,
+		}
+	}
+	return out, nil
+}
+
+func (p *Provider) GetEpisodeGroupDetail(ctx context.Context, groupID string) (*tv.EpisodeGroupDetail, error) {
+	detail, err := p.client.GetEpisodeGroupDetail(ctx, groupID)
+	if err != nil {
+		return nil, fmt.Errorf("tmdb get episode group detail %q: %w", groupID, err)
+	}
+
+	groups := make([]tv.EpisodeGrouping, len(detail.Groups))
+	for i, g := range detail.Groups {
+		episodes := make([]tv.ProviderEpisode, len(g.Episodes))
+		for j, ep := range g.Episodes {
+			airDate, _ := parseDate(ep.AirDate)
+			episodes[j] = tv.ProviderEpisode{
+				ExternalID:     core.NewExternalId(metadata.ProviderTMDBTV, strconv.Itoa(ep.ID)),
+				ShowExternalID: core.NewExternalId(metadata.ProviderTMDBTV, strconv.Itoa(ep.ShowID)),
+				SeasonNumber:   ep.SeasonNumber,
+				EpisodeNumber:  ep.EpisodeNumber,
+				Title:          ep.Name,
+				Overview:       ep.Overview,
+				AirDate:        airDate,
+				Runtime:        ep.Runtime,
+				Still:          ep.StillPath,
+				Rating:         float32(ep.VoteAverage),
+				VoteCount:      ep.VoteCount,
+				IsSeasonFinale: ep.EpisodeType == "finale",
+			}
+		}
+		groups[i] = tv.EpisodeGrouping{
+			ID:       g.ID,
+			Name:     g.Name,
+			Order:    g.Order,
+			Episodes: episodes,
+		}
+	}
+
+	return &tv.EpisodeGroupDetail{
+		ID:     detail.ID,
+		Name:   detail.Name,
+		Type:   tv.EpisodeGroupType(detail.Type),
+		Groups: groups,
+	}, nil
 }
 
 func (p *Provider) tvExternalIDs(ctx context.Context, tmdbID int) []core.ExternalId {

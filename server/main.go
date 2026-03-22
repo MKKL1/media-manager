@@ -70,7 +70,8 @@ func main() {
 	}
 
 	wfClient := client.New(wfBackend)
-	pullService := services.NewPullService(wfClient)
+	wf := workflows.RegisterPullWorkflow(wfWorker, repo, handlers)
+	pullService := services.NewPullService(wfClient, wf)
 
 	router := http.NewRouter(logger)
 	http.NewMediaController(pullService, logger).Route(router)

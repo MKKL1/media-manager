@@ -10,5 +10,5 @@ type Searcher interface {
 
 type Fetcher interface {
 	GetShow(ctx context.Context, id string) (*ProviderShow, error)
-	GetEpisodes(ctx context.Context, id string) ([]ProviderEpisode, error)
+	GetEpisodes(ctx context.Context, id string) ([]ProviderSeason, error)
 }

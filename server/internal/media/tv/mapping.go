@@ -5,11 +5,15 @@ import (
 	"server/internal/core"
 )
 
+type SeasonMapping struct {
+	sourceId     core.ExternalId //anidb id
+	seasonNumber int
+	provider     string
+}
+
 type SeasonMappingRepository interface {
 	FindSeasonMapping(
 		ctx context.Context,
-		id core.ExternalId,
-		targetProvider string,
-		seasonNumber int,
-	) ([]core.ExternalId, error)
+		id core.ExternalId, //tmdb id
+	) ([]SeasonMapping, error)
 }

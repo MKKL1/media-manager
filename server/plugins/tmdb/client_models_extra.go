@@ -39,3 +39,29 @@ type ExternalIDs struct {
 	InstagramID string `json:"instagram_id"`
 	TwitterID   string `json:"twitter_id"`
 }
+
+type EpisodeGroupSummary struct {
+	ID           string   `json:"id"`
+	Name         string   `json:"name"`
+	Description  string   `json:"description"`
+	Type         int      `json:"type"`
+	EpisodeCount int      `json:"episode_count"`
+	GroupCount   int      `json:"group_count"`
+	Network      *Network `json:"network"`
+}
+
+type EpisodeGroupDetailResponse struct {
+	ID           string                  `json:"id"`
+	Name         string                  `json:"name"`
+	Description  string                  `json:"description"`
+	Type         int                     `json:"type"`
+	EpisodeCount int                     `json:"episode_count"`
+	Groups       []EpisodeGroupingDetail `json:"groups"`
+}
+
+type EpisodeGroupingDetail struct {
+	ID       string    `json:"id"`
+	Name     string    `json:"name"`
+	Order    int       `json:"order"`
+	Episodes []Episode `json:"episodes"`
+}

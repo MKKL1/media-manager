@@ -101,6 +101,15 @@ type ProviderShow struct {
 	Popularity       float64
 }
 
+type ProviderSeason struct {
+	SeasonNumber int
+	Rating       *float32
+	VoteCount    *int
+	ExternalID   *core.ExternalId
+	Title        *string
+	Episodes     []ProviderEpisode
+}
+
 type ProviderEpisode struct {
 	ExternalID     core.ExternalId
 	ShowExternalID core.ExternalId

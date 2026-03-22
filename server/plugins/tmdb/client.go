@@ -207,3 +207,31 @@ func (c *Client) GetMovieExternalIDs(ctx context.Context, id int) (*ExternalIDs,
 
 	return &ext, nil
 }
+
+func (c *Client) GetEpisodeGroups(ctx context.Context, seriesID int) ([]EpisodeGroupSummary, error) {
+	data, err := c.get(ctx, fmt.Sprintf("/3/tv/%d/episode_groups", seriesID), url.Values{})
+	if err != nil {
+		return nil, err
+	}
+
+	var response struct {
+		Results []EpisodeGroupSummary `json:"results"`
+	}
+	if err := json.Unmarshal(data, &response); err != nil {
+		return nil, err
+	}
+	return response.Results, nil
+}
+
+func (c *Client) GetEpisodeGroupDetail(ctx context.Context, groupID string) (*EpisodeGroupDetailResponse, error) {
+	data, err := c.get(ctx, "/3/tv/episode_group/"+groupID, url.Values{})
+	if err != nil {
+		return nil, err
+	}
+
+	var detail EpisodeGroupDetailResponse
+	if err := json.Unmarshal(data, &detail); err != nil {
+		return nil, err
+	}
+	return &detail, nil
+}
