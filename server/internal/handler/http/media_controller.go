@@ -54,11 +54,14 @@ func (c *MediaController) PullMedia(w http.ResponseWriter, r *http.Request) {
 	}
 
 	extID := core.NewExternalId(req.Provider, req.ID)
-	task, err := c.pullService.RequestPull(r.Context(), extID, req.MediaType)
+	instanceID, err := c.pullService.RequestPull(r.Context(), extID, req.MediaType)
 	if err != nil {
 		Error(w, r, err)
 		return
 	}
 
-	JSON(w, http.StatusAccepted, map[string]any{"status": "queued", "task": task})
+	JSON(w, http.StatusAccepted, map[string]any{
+		"status":      "queued",
+		"workflow_id": instanceID,
+	})
 }

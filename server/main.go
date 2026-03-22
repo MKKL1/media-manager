@@ -7,100 +7,80 @@ import (
 	"os"
 	"os/signal"
 	"server/infra/database"
-	"server/infra/riverqueue"
+	"server/infra/telemetry"
+	wfinfra "server/infra/workflow"
 	"server/internal/handler/http"
 	"server/internal/media/movie"
 	"server/internal/media/tv"
 	"server/internal/metadata"
 	"server/internal/metadata/services"
+	"server/internal/metadata/workflows"
+	anime_list "server/plugins/anime-list"
 	"server/plugins/tmdb"
 
-	"github.com/riverqueue/river"
+	"github.com/cschleiden/go-workflows/client"
+	"github.com/cschleiden/go-workflows/worker"
 	"github.com/rs/zerolog"
-	"github.com/rs/zerolog/log"
 )
 
 func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
 
-	go func() {
-		for {
-			select {
-			case <-ctx.Done():
-				fmt.Println("shutting down...")
-				return
-			}
-		}
-	}()
+	shutdown, err := telemetry.InitTracer(ctx)
+	if err != nil {
+		panic(err)
+	}
+	defer shutdown()
 
 	db, err := database.NewDB(os.Getenv("DATABASE_URL"))
 	if err != nil {
 		panic(err)
 	}
-
 	if err := database.Migrate(ctx, db); err != nil {
 		panic(err)
 	}
 
 	repo := database.NewBunMediaRepository(db)
+
+	mappingsRepo := database.NewMappingRepository(db)
+	mappingsService := services.NewMappingsService(mappingsRepo, []metadata.MappingSource{
+		anime_list.NewProvider(""),
+	})
+	if err := mappingsService.SyncMappings(ctx); err != nil {
+		panic(err)
+	}
+
 	logger := zerolog.New(zerolog.ConsoleWriter{Out: os.Stdout}).With().Timestamp().Logger()
 	ctx = logger.WithContext(ctx)
-	router := http.NewRouter(logger)
 
 	provider := tmdb.NewProvider(os.Getenv("TMDB_API_KEY"))
-
-	movieFetchers := map[string]movie.Fetcher{"tmdb": provider}
-	tvFetchers := map[string]tv.Fetcher{"tmdb": provider}
-
-	movieHandler := movie.NewMovieHandler(movieFetchers)
-	tvHandler := tv.NewTVHandler(tvFetchers)
-
 	handlers := metadata.Handlers{
-		movie.MediaType: movieHandler,
-		tv.MediaType:    tvHandler,
+		movie.MediaType: movie.NewMovieHandler(map[string]movie.Fetcher{"tmdb": provider}),
+		tv.MediaType:    tv.NewTVHandler(map[string]tv.Fetcher{"tmdb": provider}),
 	}
 
-	workers := river.NewWorkers()
-	riverclient, err := riverqueue.NewClient(ctx, os.Getenv("DATABASE_URL"), workers)
-	if err != nil {
-		panic(err)
-	}
-	taskQueue := riverqueue.NewTaskQueue(riverclient)
-	mediaPullService := services.NewPullService(repo, taskQueue, handlers)
-	river.AddWorker(workers, riverqueue.NewPullMediaWorker(mediaPullService, logger))
+	//TODO accept both url and params
+	wfBackend := wfinfra.NewBackend("localhost", 5432, "user", "password", "my_project_db")
+	wfWorker := worker.New(wfBackend, nil)
+	workflows.RegisterPullWorkflow(wfWorker, repo, handlers)
 
-	if err := riverclient.Start(ctx); err != nil {
+	if err := wfWorker.Start(ctx); err != nil {
 		panic(err)
 	}
 
-	mediaController := http.NewMediaController(mediaPullService, logger)
-	mediaController.Route(router)
+	wfClient := client.New(wfBackend)
+	pullService := services.NewPullService(wfClient)
 
-	//res, err := searchService.SearchWithProvider(ctx, "one piece", core.MediaTypeTV, provider)
-	//if err != nil {
-	//	log.Fatal().Err(err).Msg("")
-	//}
-	//
-	//_, err = riverclient.Insert(ctx, riverqueue.MediaPullArgs{
-	//	ExtID:     res[0].ExternalID,
-	//	MediaType: res[0].MediaType,
-	//}, nil)
-	//if err != nil {
-	//	log.Fatal().Err(err).Msg("")
-	//}
+	router := http.NewRouter(logger)
+	http.NewMediaController(pullService, logger).Route(router)
 
-	err = stdHttp.ListenAndServe(":3000", router)
-	if err != nil {
-		panic(err)
+	go func() {
+		<-ctx.Done()
+		fmt.Println("shutting down...")
+	}()
+
+	if err := stdHttp.ListenAndServe(":3000", router); err != nil {
+		logger.Fatal().Err(err).Msg("server stopped")
 	}
-
-	<-ctx.Done()
-
-	if err := riverclient.Stop(ctx); err != nil {
-		log.Fatal().Err(err).Msg("")
-	}
-
-	fmt.Println("Program exited gracefully.")
-
 }
