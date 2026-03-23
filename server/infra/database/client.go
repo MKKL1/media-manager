@@ -29,7 +29,7 @@ func NewDB(connectionString string) (*bun.DB, error) {
 
 	db := bun.NewDB(sqldb, pgdialect.New()).
 		WithQueryHook(bunotel.NewQueryHook(
-			bunotel.WithDBName("suasor"),
+			bunotel.WithDBName("db"),
 		))
 
 	return db, nil

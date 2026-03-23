@@ -2,21 +2,22 @@ package http
 
 import (
 	"net/http"
-	"server/internal/core"
-	"server/internal/metadata/services"
+	"server/internal/domain"
+	"server/internal/metadata"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/goccy/go-json"
-	"github.com/rs/zerolog"
+	"go.opentelemetry.io/otel"
 )
 
+var tracer = otel.Tracer("http/media")
+
 type MediaController struct {
-	pullService *services.PullService
-	logger      zerolog.Logger
+	pullService *metadata.PullService
 }
 
-func NewMediaController(pullService *services.PullService, logger zerolog.Logger) *MediaController {
-	return &MediaController{pullService: pullService, logger: logger}
+func NewMediaController(pullService *metadata.PullService) *MediaController {
+	return &MediaController{pullService: pullService}
 }
 
 func (c *MediaController) Route(r *chi.Mux) http.Handler {
@@ -26,17 +27,17 @@ func (c *MediaController) Route(r *chi.Mux) http.Handler {
 }
 
 type pullMediaRequest struct {
-	Provider  string         `json:"provider"`
-	ID        string         `json:"id"`
-	MediaType core.MediaType `json:"media_type"`
+	Provider  string           `json:"provider"`
+	ID        string           `json:"id"`
+	MediaType domain.MediaType `json:"media_type"`
 }
 
 func (req pullMediaRequest) validate() error {
 	if req.Provider == "" || req.ID == "" {
-		return core.ErrInvalidInput
+		return domain.ErrInvalidInput
 	}
 	if req.MediaType != "movie" && req.MediaType != "tv" {
-		return core.ErrInvalidInput
+		return domain.ErrInvalidInput
 	}
 	return nil
 }
@@ -53,7 +54,7 @@ func (c *MediaController) PullMedia(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	extID := core.NewExternalId(req.Provider, req.ID)
+	extID := domain.NewExternalId(req.Provider, req.ID)
 	instanceID, err := c.pullService.RequestPull(r.Context(), extID, req.MediaType)
 	if err != nil {
 		Error(w, r, err)

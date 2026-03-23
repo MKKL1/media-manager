@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"server/internal/core"
+	"server/internal/domain"
 	"server/internal/metadata"
 
 	"github.com/google/uuid"
@@ -22,12 +22,12 @@ func NewBunMediaRepository(db *bun.DB) *BunMediaRepository {
 	return &BunMediaRepository{db}
 }
 
-func (b BunMediaRepository) Get(ctx context.Context, id core.MediaId) (*core.Media, error) {
+func (b BunMediaRepository) Get(ctx context.Context, id domain.MediaId) (*domain.Media, error) {
 	var m Media
 	err := b.db.NewSelect().Model(&m).Where("id = ?", uuid.UUID(id)).Relation("ExternalIds").Limit(1).Scan(ctx)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, core.ErrNotFound
+			return nil, domain.ErrNotFound
 		}
 		return nil, err
 	}
@@ -35,7 +35,7 @@ func (b BunMediaRepository) Get(ctx context.Context, id core.MediaId) (*core.Med
 	return m.toCore(), nil
 }
 
-func (b BunMediaRepository) GetByExternalID(ctx context.Context, id core.ExternalId) (*core.Media, error) {
+func (b BunMediaRepository) GetByExternalID(ctx context.Context, id domain.ExternalId) (*domain.Media, error) {
 	var m Media
 
 	err := b.db.NewSelect().
@@ -47,7 +47,7 @@ func (b BunMediaRepository) GetByExternalID(ctx context.Context, id core.Externa
 
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, core.ErrNotFound
+			return nil, domain.ErrNotFound
 		}
 		return nil, err
 	}
@@ -55,7 +55,7 @@ func (b BunMediaRepository) GetByExternalID(ctx context.Context, id core.Externa
 	return m.toCore(), nil
 }
 
-func (b BunMediaRepository) Store(ctx context.Context, media *core.Media) error {
+func (b BunMediaRepository) Store(ctx context.Context, media *domain.Media) error {
 	m, err := fromCore(media)
 	if err != nil {
 		return err
@@ -90,7 +90,7 @@ func (b BunMediaRepository) Store(ctx context.Context, media *core.Media) error 
 	})
 }
 
-func (b BunMediaRepository) StoreMediaWithItems(ctx context.Context, m core.MediaWithItems) error {
+func (b BunMediaRepository) StoreMediaWithItems(ctx context.Context, m domain.MediaWithItems) error {
 	media, err := fromCore(&m.Media)
 	if err != nil {
 		return err
@@ -147,7 +147,7 @@ func (b BunMediaRepository) StoreMediaWithItems(ctx context.Context, m core.Medi
 	})
 }
 
-func (b BunMediaRepository) GetMediaIdByExternalId(ctx context.Context, id core.ExternalId) (*core.MediaId, error) {
+func (b BunMediaRepository) GetMediaIdByExternalId(ctx context.Context, id domain.ExternalId) (*domain.MediaId, error) {
 	var mediaID uuid.UUID
 	err := b.db.NewSelect().
 		TableExpr("external_ids").
@@ -159,11 +159,11 @@ func (b BunMediaRepository) GetMediaIdByExternalId(ctx context.Context, id core.
 
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, core.ErrNotFound
+			return nil, domain.ErrNotFound
 		}
 		return nil, err
 	}
 
-	res := core.MediaId(mediaID)
+	res := domain.MediaId(mediaID)
 	return &res, nil
 }

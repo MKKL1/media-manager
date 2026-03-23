@@ -6,13 +6,16 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"server/internal/core"
+	"server/internal/domain"
 	"strconv"
 	"time"
 
 	"github.com/goccy/go-json"
 	"github.com/hashicorp/go-retryablehttp"
 	"github.com/sony/gobreaker"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 //TODO cache, but how?
@@ -31,7 +34,18 @@ func NewClient(apiKey string) *Client {
 	retryClient := retryablehttp.NewClient()
 	retryClient.RetryMax = 3
 	retryClient.Logger = nil
-	retryClient.HTTPClient = &http.Client{Timeout: 5 * time.Second}
+	retryClient.HTTPClient = &http.Client{
+		Timeout: 5 * time.Second,
+		Transport: otelhttp.NewTransport(http.DefaultTransport,
+			otelhttp.WithSpanNameFormatter(func(_ string, r *http.Request) string {
+				return "tmdb " + r.Method + " " + r.URL.Path
+			}),
+			otelhttp.WithSpanOptions(trace.WithAttributes(
+				attribute.String("plugin", "tmdb"),
+				attribute.String("component", "plugin"),
+			)),
+		),
+	}
 
 	breaker := gobreaker.NewCircuitBreaker(gobreaker.Settings{
 		Interval: 60 * time.Second,
@@ -149,12 +163,8 @@ func (c *Client) get(ctx context.Context, path string, params url.Values) ([]byt
 		}
 		defer resp.Body.Close()
 
-		if resp.StatusCode == http.StatusTooManyRequests {
-			return nil, fmt.Errorf("tmdb api: %w", core.ErrRateLimited)
-		}
-
 		if resp.StatusCode != http.StatusOK {
-			return nil, fmt.Errorf("unexpected status %d", resp.StatusCode)
+			return nil, tmdbStatusError(resp.StatusCode)
 		}
 
 		return io.ReadAll(resp.Body)
@@ -164,6 +174,22 @@ func (c *Client) get(ctx context.Context, path string, params url.Values) ([]byt
 	}
 
 	return result.([]byte), nil
+}
+
+func tmdbStatusError(status int) error {
+	switch status {
+	case http.StatusTooManyRequests:
+		return fmt.Errorf("tmdb: %w", domain.ErrRateLimited)
+	case http.StatusNotFound:
+		return domain.Permanent(fmt.Errorf("tmdb: %w", domain.ErrNotFound)) //TODO i don't like this, it's not a way in which golang should handle errors
+	case http.StatusUnauthorized, http.StatusForbidden:
+		return domain.Permanent(fmt.Errorf("tmdb: access denied (status %d)", status))
+	default:
+		if status >= 400 && status < 500 {
+			return domain.Permanent(fmt.Errorf("tmdb: client error (status %d)", status))
+		}
+		return fmt.Errorf("tmdb: server error (status %d)", status)
+	}
 }
 
 func (c *Client) GetSeason(ctx context.Context, tvID int, seasonNumber int) (*Season, error) {

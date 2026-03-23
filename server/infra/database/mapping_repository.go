@@ -4,7 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"server/internal/core"
+	"server/internal/domain"
 	"server/internal/metadata"
 	"time"
 
@@ -161,7 +161,7 @@ func (r *MappingRepository) SetSourceVersion(ctx context.Context, source string,
 }
 
 // FindMappings returns all cross-referenced IDs for a given provider:id
-func (r *MappingRepository) FindMappings(ctx context.Context, id core.ExternalId) ([]core.ExternalId, error) {
+func (r *MappingRepository) FindMappings(ctx context.Context, id domain.ExternalId) ([]domain.ExternalId, error) {
 	var mappings []ProviderMapping
 	err := r.db.NewSelect().
 		Model(&mappings).
@@ -177,16 +177,16 @@ func (r *MappingRepository) FindMappings(ctx context.Context, id core.ExternalId
 		return nil, err
 	}
 
-	result := make([]core.ExternalId, len(mappings))
+	result := make([]domain.ExternalId, len(mappings))
 	for i, m := range mappings {
-		result[i] = core.NewExternalId(m.Provider, m.ProviderID)
+		result[i] = domain.NewExternalId(m.Provider, m.ProviderID)
 	}
 	return result, nil
 }
 
 // FindSeasonMapping returns source entity IDs that map to a specific season
 // e.g. "tmdb:62913 season 2" → returns [anidb:3]
-func (r *MappingRepository) FindSeasonMapping(ctx context.Context, id core.ExternalId, targetProvider string, seasonNumber int) ([]core.ExternalId, error) {
+func (r *MappingRepository) FindSeasonMapping(ctx context.Context, id domain.ExternalId, targetProvider string, seasonNumber int) ([]domain.ExternalId, error) {
 	var mappings []SeasonMapping
 	err := r.db.NewSelect().
 		Model(&mappings).
@@ -203,9 +203,9 @@ func (r *MappingRepository) FindSeasonMapping(ctx context.Context, id core.Exter
 		return nil, err
 	}
 
-	result := make([]core.ExternalId, len(mappings))
+	result := make([]domain.ExternalId, len(mappings))
 	for i, m := range mappings {
-		result[i] = core.NewExternalId(m.Provider, m.ProviderID)
+		result[i] = domain.NewExternalId(m.Provider, m.ProviderID)
 	}
 	return result, nil
 }

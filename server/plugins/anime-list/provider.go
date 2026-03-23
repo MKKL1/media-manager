@@ -5,13 +5,16 @@ import (
 	"encoding/xml"
 	"fmt"
 	"net/http"
-	"server/internal/core"
+	"server/internal/domain"
 	"server/internal/metadata"
 	"strconv"
 	"time"
 
 	"github.com/hashicorp/go-retryablehttp"
 	"github.com/sony/gobreaker"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 var _ metadata.MappingSource = (*Source)(nil)
@@ -22,11 +25,22 @@ type Source struct {
 	url     string
 }
 
-func NewProvider(url string) *Source {
+func NewSource(url string) *Source {
 	retryClient := retryablehttp.NewClient()
 	retryClient.RetryMax = 3
 	retryClient.Logger = nil
-	retryClient.HTTPClient = &http.Client{Timeout: 5 * time.Second}
+	retryClient.HTTPClient = &http.Client{
+		Timeout: 5 * time.Second,
+		Transport: otelhttp.NewTransport(http.DefaultTransport,
+			otelhttp.WithSpanNameFormatter(func(_ string, r *http.Request) string {
+				return "anime-list " + r.Method + " " + r.URL.Path
+			}),
+			otelhttp.WithSpanOptions(trace.WithAttributes(
+				attribute.String("plugin", "anime-list"),
+				attribute.String("component", "plugin"),
+			)),
+		),
+	}
 
 	breaker := gobreaker.NewCircuitBreaker(gobreaker.Settings{
 		Interval: 60 * time.Second,
@@ -57,7 +71,7 @@ func (p Source) Load(ctx context.Context, lastVersion string) (*metadata.Mapping
 		req.Header.Set("If-None-Match", lastVersion)
 	}
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := p.client.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -86,42 +100,42 @@ func (p Source) Load(ctx context.Context, lastVersion string) (*metadata.Mapping
 	}, nil
 }
 func (a *xmlAnime) toMappingEntry() metadata.MappingEntry {
-	anidbID := core.NewExternalId(metadata.ProviderAniDB, itoa(a.AniDBID))
+	anidbID := domain.NewExternalId(domain.ProviderAniDB, itoa(a.AniDBID))
 
 	entry := metadata.MappingEntry{
-		IDs: []core.ExternalId{anidbID},
+		IDs: []domain.ExternalId{anidbID},
 	}
 
 	// tvdbid="movie" means no tvdb series
 	if a.TVDBID != "" && a.TVDBID != "movie" {
-		entry.IDs = append(entry.IDs, core.NewExternalId(metadata.ProviderTVDB, a.TVDBID))
+		entry.IDs = append(entry.IDs, domain.NewExternalId(domain.ProviderTVDB, a.TVDBID))
 	}
 
 	// tmdbtv = tmdb TV series ID
 	if a.TMDBTv != "" {
-		entry.IDs = append(entry.IDs, core.NewExternalId(metadata.ProviderTMDBTV, a.TMDBTv))
+		entry.IDs = append(entry.IDs, domain.NewExternalId(domain.ProviderTMDBTV, a.TMDBTv))
 	}
 
 	// tmdbid = tmdb movie ID
 	if a.TMDBId != "" {
-		entry.IDs = append(entry.IDs, core.NewExternalId(metadata.ProviderTMDBMovie, a.TMDBId))
+		entry.IDs = append(entry.IDs, domain.NewExternalId(domain.ProviderTMDBMovie, a.TMDBId))
 	}
 
 	if a.IMDBId != "" {
-		entry.IDs = append(entry.IDs, core.NewExternalId(metadata.ProviderIMDB, a.IMDBId))
+		entry.IDs = append(entry.IDs, domain.NewExternalId(domain.ProviderIMDB, a.IMDBId))
 	}
 
 	// Season mappings — "a" means all seasons, skip those
 	if season, err := strconv.Atoi(a.DefaultTVDBSeason); err == nil {
 		entry.Seasons = append(entry.Seasons, metadata.SeasonMapping{
-			Provider:     metadata.ProviderTVDB,
+			Provider:     domain.ProviderTVDB,
 			SeasonNumber: season,
 		})
 	}
 
 	if season, err := strconv.Atoi(a.TMDBSeason); err == nil {
 		entry.Seasons = append(entry.Seasons, metadata.SeasonMapping{
-			Provider:     metadata.ProviderTMDBTV,
+			Provider:     domain.ProviderTMDBTV,
 			SeasonNumber: season,
 		})
 	}

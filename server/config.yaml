@@ -1,0 +1,20 @@
+http:
+  addr: ":3000"
+
+database:
+  host: "localhost"
+  port: 5432
+  user: "user"
+  password: "password"
+  database: "my_project_db"
+  ssl_mode: "disable"
+
+telemetry:
+  enabled: true
+  endpoint: "localhost:4318"
+
+#tmdb:
+#  api_key: ""
+
+logging:
+  level: debug

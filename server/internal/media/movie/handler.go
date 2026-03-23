@@ -3,13 +3,13 @@ package movie
 import (
 	"context"
 	"fmt"
-	"server/internal/core"
+	"server/internal/domain"
 	"server/internal/metadata"
 
 	"github.com/google/uuid"
 )
 
-var _ metadata.MediaTypeHandler = (*Handler)(nil)
+var _ metadata.MediaHandler = (*Handler)(nil)
 
 type Handler struct {
 	fetchers map[string]Fetcher
@@ -20,7 +20,7 @@ func NewMovieHandler(fetchers map[string]Fetcher) *Handler {
 }
 
 // FetchMedia Decides what provider to query and maps to generic media type
-func (h *Handler) FetchMedia(ctx context.Context, id core.ExternalId) (*core.MediaWithItems, error) {
+func (h *Handler) FetchMedia(ctx context.Context, id domain.ExternalId) (*domain.MediaWithItems, error) {
 	fetcher, ok := h.fetchers[id.Provider]
 	if !ok {
 		return nil, fmt.Errorf("provider %s not found for movie", id.Provider)
@@ -42,12 +42,12 @@ func (h *Handler) FetchMedia(ctx context.Context, id core.ExternalId) (*core.Med
 		Backdrop:      movie.Backdrop,
 	}
 
-	mediaID := core.GenerateMediaID()
+	mediaID := domain.GenerateMediaID()
 
-	externalIds := []core.ExternalId{id}
+	externalIds := []domain.ExternalId{id}
 	externalIds = append(externalIds, movie.ExternalIDs...)
 
-	media := core.Media{
+	media := domain.Media{
 		ID:                mediaID,
 		Type:              string(MediaType),
 		Title:             movie.Title,
@@ -58,14 +58,14 @@ func (h *Handler) FetchMedia(ctx context.Context, id core.ExternalId) (*core.Med
 	}
 
 	// For movies, the item array just contains the movie itself as a single item
-	movieItem := core.MediaItem{
+	movieItem := domain.MediaItem{
 		ID:      uuid.New(),
 		MediaId: mediaID,
 		Status:  "Unknown",
 	}
 
-	return &core.MediaWithItems{
+	return &domain.MediaWithItems{
 		Media: media,
-		Items: []core.MediaItem{movieItem},
+		Items: []domain.MediaItem{movieItem},
 	}, nil
 }

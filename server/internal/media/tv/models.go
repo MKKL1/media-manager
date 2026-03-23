@@ -1,16 +1,16 @@
 package tv
 
 import (
-	"server/internal/core"
+	"server/internal/domain"
 	"time"
 
 	"github.com/google/uuid"
 )
 
-const MediaType core.MediaType = "tv"
+const MediaType domain.MediaType = "tv"
 
 type Show struct {
-	core.MediaItem
+	domain.MediaItem
 	Title string
 	Year  int
 }
@@ -51,8 +51,8 @@ type EpisodeMetadata struct {
 }
 
 type Episode struct {
-	core.MediaItem
-	ShowID        core.MediaId
+	domain.MediaItem
+	ShowID        domain.MediaId
 	SeasonNumber  int
 	EpisodeNumber int
 	Title         string
@@ -66,7 +66,7 @@ type SearchQuery struct {
 }
 
 type SearchResult struct {
-	ExternalID core.ExternalId
+	ExternalID domain.ExternalId
 	Title      string
 	Year       int
 	Overview   string
@@ -75,8 +75,8 @@ type SearchResult struct {
 }
 
 type ProviderShow struct {
-	ExternalID       core.ExternalId
-	ExternalIDs      []core.ExternalId
+	ExternalID       domain.ExternalId
+	ExternalIDs      []domain.ExternalId
 	Title            string
 	OriginalTitle    string
 	OriginalLanguage string
@@ -105,14 +105,14 @@ type ProviderSeason struct {
 	SeasonNumber int
 	Rating       *float32
 	VoteCount    *int
-	ExternalID   *core.ExternalId
+	ExternalID   *domain.ExternalId
 	Title        *string
 	Episodes     []ProviderEpisode
 }
 
 type ProviderEpisode struct {
-	ExternalID     core.ExternalId
-	ShowExternalID core.ExternalId
+	ExternalID     domain.ExternalId
+	ShowExternalID domain.ExternalId
 	SeasonNumber   int
 	EpisodeNumber  int
 	Title          string

@@ -2,11 +2,11 @@ package tv
 
 import (
 	"context"
-	"server/internal/core"
+	"server/internal/domain"
 )
 
 type SeasonMapping struct {
-	sourceId     core.ExternalId //anidb id
+	sourceId     domain.ExternalId //anidb id
 	seasonNumber int
 	provider     string
 }
@@ -14,6 +14,6 @@ type SeasonMapping struct {
 type SeasonMappingRepository interface {
 	FindSeasonMapping(
 		ctx context.Context,
-		id core.ExternalId, //tmdb id
+		id domain.ExternalId, //tmdb id
 	) ([]SeasonMapping, error)
 }

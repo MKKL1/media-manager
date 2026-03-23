@@ -1,14 +1,14 @@
 package movie
 
 import (
-	"server/internal/core"
+	"server/internal/domain"
 	"time"
 )
 
-const MediaType core.MediaType = "movie"
+const MediaType domain.MediaType = "movie"
 
 type Movie struct {
-	core.MediaItem
+	domain.MediaItem
 	Title string
 	Year  int
 }
@@ -31,7 +31,7 @@ type SearchQuery struct {
 }
 
 type SearchResult struct {
-	ExternalID core.ExternalId
+	ExternalID domain.ExternalId
 	Title      string
 	Year       int
 	Overview   string
@@ -40,8 +40,8 @@ type SearchResult struct {
 }
 
 type ProviderMovie struct {
-	ExternalID  core.ExternalId
-	ExternalIDs []core.ExternalId
+	ExternalID  domain.ExternalId
+	ExternalIDs []domain.ExternalId
 
 	Title            string
 	OriginalTitle    string

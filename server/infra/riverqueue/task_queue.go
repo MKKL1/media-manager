@@ -2,7 +2,7 @@ package riverqueue
 
 import (
 	"context"
-	"server/internal/core"
+	"server/internal/domain"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/riverqueue/river"
@@ -17,7 +17,7 @@ func NewTaskQueue(client *river.Client[pgx.Tx]) *TaskQueue {
 	return &TaskQueue{client: client}
 }
 
-func (q *TaskQueue) Enqueue(ctx context.Context, args core.JobArgs) (*core.Job, error) {
+func (q *TaskQueue) Enqueue(ctx context.Context, args domain.JobArgs) (*domain.Job, error) {
 	res, err := q.client.Insert(ctx, args, &river.InsertOpts{
 		UniqueOpts: river.UniqueOpts{
 			ByArgs: true,
@@ -33,7 +33,7 @@ func (q *TaskQueue) Enqueue(ctx context.Context, args core.JobArgs) (*core.Job, 
 	if err != nil {
 		return nil, err
 	}
-	return &core.Job{
+	return &domain.Job{
 		Id:        res.Job.ID,
 		Duplicate: res.UniqueSkippedAsDuplicate,
 	}, nil

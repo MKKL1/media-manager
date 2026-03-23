@@ -2,7 +2,7 @@ package database
 
 import (
 	"fmt"
-	"server/internal/core"
+	"server/internal/domain"
 	"time"
 
 	"github.com/goccy/go-json"
@@ -47,30 +47,31 @@ type Media struct {
 	ExternalIds []ExternalId `bun:"rel:has-many,join:id=media_id"`
 }
 
-func (m *Media) toCore() *core.Media {
-	externalIds := make([]core.ExternalId, len(m.ExternalIds))
+func (m *Media) toCore() *domain.Media {
+	externalIds := make([]domain.ExternalId, len(m.ExternalIds))
 	for i, ext := range m.ExternalIds {
-		externalIds[i] = core.ExternalId{
+		externalIds[i] = domain.ExternalId{
 			Provider: ext.Provider,
 			Id:       ext.Value,
 		}
 	}
 
-	return &core.Media{
-		ID:          core.MediaId(m.ID),
-		Type:        m.Type,
-		Title:       m.Title,
-		Status:      m.Status,
-		Monitored:   m.Monitored,
-		ExternalIds: externalIds,
-		Metadata:    m.Metadata,
-		CreatedAt:   m.CreatedAt,
-		LastSync:    m.LastSync,
-		UpdatedAt:   m.UpdatedAt,
+	return &domain.Media{
+		ID:                domain.MediaId(m.ID),
+		Type:              m.Type,
+		Title:             m.Title,
+		Status:            m.Status,
+		Monitored:         m.Monitored,
+		PrimaryExternalId: domain.NewExternalId(m.Provider, m.ProviderId),
+		ExternalIds:       externalIds,
+		Metadata:          m.Metadata,
+		CreatedAt:         m.CreatedAt,
+		LastSync:          m.LastSync,
+		UpdatedAt:         m.UpdatedAt,
 	}
 }
 
-func fromCore(c *core.Media) (*Media, error) {
+func fromCore(c *domain.Media) (*Media, error) {
 	externalIds := make([]ExternalId, len(c.ExternalIds))
 	for i, ext := range c.ExternalIds {
 		externalIds[i] = ExternalId{
@@ -101,6 +102,8 @@ func fromCore(c *core.Media) (*Media, error) {
 		Title:       c.Title,
 		Status:      c.Status,
 		Monitored:   c.Monitored,
+		Provider:    c.PrimaryExternalId.Provider,
+		ProviderId:  c.PrimaryExternalId.Id,
 		ExternalIds: externalIds,
 		Metadata:    metadataBytes,
 		CreatedAt:   c.CreatedAt,
@@ -109,7 +112,7 @@ func fromCore(c *core.Media) (*Media, error) {
 	}, nil
 }
 
-func fromCoreItem(c core.MediaItem) (MediaItem, error) {
+func fromCoreItem(c domain.MediaItem) (MediaItem, error) {
 	var metadataBytes json.RawMessage
 	if c.Metadata != nil {
 		if raw, ok := c.Metadata.(json.RawMessage); ok {
