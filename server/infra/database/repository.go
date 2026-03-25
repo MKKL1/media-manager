@@ -164,6 +164,77 @@ func (b BunMediaRepository) GetMediaIdByExternalId(ctx context.Context, id domai
 		return nil, err
 	}
 
-	res := domain.MediaId(mediaID)
-	return &res, nil
+	return new(domain.MediaId(mediaID)), nil
+}
+
+func (b BunMediaRepository) List(ctx context.Context, q domain.MediaQuery) ([]domain.Media, int, error) {
+	var dbMedia []Media
+	var total int
+
+	countQuery := b.db.NewSelect().
+		Model((*Media)(nil)).
+		Where("deleted_at IS NULL")
+
+	if q.Type != "" {
+		countQuery = countQuery.Where("type = ?", q.Type)
+	}
+
+	c, err := countQuery.Count(ctx)
+	if err != nil {
+		return nil, 0, err
+	}
+	total = c
+
+	selectQuery := b.db.NewSelect().
+		Model(&dbMedia).
+		Relation("ExternalIds"). //not sure if it's needed here, but will leave it as is
+		Where("deleted_at IS NULL")
+
+	if q.Type != "" {
+		selectQuery = selectQuery.Where("type = ?", q.Type)
+	}
+
+	//sort
+	sortBy := domain.SortByCreatedAt
+	switch q.SortBy {
+	case domain.SortByTitle:
+		sortBy = "title"
+	case domain.SortByUpdatedAt:
+		sortBy = "updated_at"
+	case domain.SortByLastSync:
+		sortBy = "last_sync"
+	case domain.SortByStatus:
+		sortBy = "status"
+	case domain.SortByType:
+		sortBy = "type"
+	case domain.SortByCreatedAt:
+		sortBy = "created_at"
+	}
+
+	sortDir := "ASC"
+	if q.SortDir == domain.SortDesc {
+		sortDir = "DESC"
+	}
+
+	selectQuery = selectQuery.OrderExpr(string(sortBy) + " " + sortDir)
+
+	//pagination
+	if q.Paginate.Limit > 0 {
+		selectQuery = selectQuery.Limit(q.Paginate.Limit)
+	}
+	if q.Paginate.Offset > 0 {
+		selectQuery = selectQuery.Offset(q.Paginate.Offset)
+	}
+
+	if err := selectQuery.Scan(ctx); err != nil {
+		return nil, 0, err
+	}
+
+	//map
+	mediaList := make([]domain.Media, len(dbMedia))
+	for i, m := range dbMedia {
+		mediaList[i] = *m.toCore()
+	}
+
+	return mediaList, total, nil
 }

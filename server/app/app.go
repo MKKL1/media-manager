@@ -15,6 +15,7 @@ import (
 	"server/internal/metadata"
 	anime_list "server/plugins/anime-list"
 	"server/plugins/tmdb"
+	"time"
 
 	"github.com/cschleiden/go-workflows/client"
 	"github.com/cschleiden/go-workflows/diag"
@@ -33,7 +34,7 @@ type ShutdownFunc func(ctx context.Context) error
 
 func New(ctx context.Context, cfg *Config) (*App, ShutdownFunc, error) {
 	zerolog.SetGlobalLevel(zerolog.InfoLevel)
-	logger := zerolog.New(zerolog.ConsoleWriter{Out: os.Stdout}).With().Timestamp().Logger()
+	logger := zerolog.New(zerolog.ConsoleWriter{Out: os.Stdout, TimeFormat: time.RFC3339}).With().Timestamp().Logger()
 	ctx = logger.WithContext(ctx)
 
 	if cfg.Log.Level == "debug" {
@@ -89,8 +90,9 @@ func New(ctx context.Context, cfg *Config) (*App, ShutdownFunc, error) {
 	pullSvc := metadata.NewPullService(mediaRepo, handlers, wfClient, logger)
 	pullSvc.Register(wfWorker)
 
+	mdSvc := metadata.NewService(mediaRepo, handlers)
 	router := apphttp.NewRouter(logger)
-	apphttp.NewMediaController(pullSvc).Route(router)
+	apphttp.NewMediaController(pullSvc, mdSvc).Route(router)
 	router.Handle("/diag/*", http.StripPrefix("/diag", diag.NewServeMux(wfBackend)))
 
 	srv := &http.Server{Addr: cfg.HTTP.Addr, Handler: router}

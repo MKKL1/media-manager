@@ -1,7 +1,7 @@
 package database
 
 import (
-	"fmt"
+	"database/sql"
 	"server/internal/domain"
 	"time"
 
@@ -23,26 +23,26 @@ type MediaItem struct {
 
 	ID        uuid.UUID       `bun:"id,pk,type:uuid"`
 	MediaID   uuid.UUID       `bun:"media_id,type:uuid,notnull"`
-	Monitored bool            `bun:"monitored"`
-	Status    string          `bun:"status"`
+	Monitored bool            `bun:"monitored,notnull"`
+	Status    string          `bun:"status,notnull"`
 	Metadata  json.RawMessage `bun:"metadata,type:jsonb"`
 }
 
 type Media struct {
 	bun.BaseModel `bun:"table:media"`
 
-	ID         uuid.UUID       `bun:"id,pk,type:uuid,default:gen_random_uuid()"`
-	Type       string          `bun:"type"`
-	Title      string          `bun:"title"`
-	Status     string          `bun:"status"`
-	Monitored  bool            `bun:"monitored"`
-	Provider   string          `bun:"provider,notnull"`
-	ProviderId string          `bun:"provider_id,notnull"`
-	Metadata   json.RawMessage `bun:"metadata,type:jsonb"`
-	CreatedAt  time.Time       `bun:"created_at"`
-	LastSync   time.Time       `bun:"last_sync"`
-	UpdatedAt  time.Time       `bun:"updated_at"`
-	DeletedAt  time.Time       `bun:"deleted_at"`
+	ID         uuid.UUID           `bun:"id,pk,type:uuid,default:gen_random_uuid()"`
+	Type       string              `bun:"type,notnull"`
+	Title      string              `bun:"title,notnull"`
+	Status     string              `bun:"status,notnull"`
+	Monitored  bool                `bun:"monitored,notnull"`
+	Provider   string              `bun:"provider,notnull"`
+	ProviderId string              `bun:"provider_id,notnull"`
+	Metadata   json.RawMessage     `bun:"metadata,type:jsonb,notnull"`
+	CreatedAt  time.Time           `bun:"created_at,notnull"`
+	LastSync   time.Time           `bun:"last_sync,notnull"`
+	UpdatedAt  time.Time           `bun:"updated_at,notnull"`
+	DeletedAt  sql.Null[time.Time] `bun:"deleted_at"` //TODO not sure what to do with it, but it could be useful to have "trash"
 
 	ExternalIds []ExternalId `bun:"rel:has-many,join:id=media_id"`
 }
@@ -58,7 +58,7 @@ func (m *Media) toCore() *domain.Media {
 
 	return &domain.Media{
 		ID:                domain.MediaId(m.ID),
-		Type:              m.Type,
+		Type:              domain.MediaType(m.Type),
 		Title:             m.Title,
 		Status:            m.Status,
 		Monitored:         m.Monitored,
@@ -71,6 +71,7 @@ func (m *Media) toCore() *domain.Media {
 	}
 }
 
+// TODO remove error
 func fromCore(c *domain.Media) (*Media, error) {
 	externalIds := make([]ExternalId, len(c.ExternalIds))
 	for i, ext := range c.ExternalIds {
@@ -81,31 +82,16 @@ func fromCore(c *domain.Media) (*Media, error) {
 		}
 	}
 
-	var metadataBytes json.RawMessage
-	if c.Metadata != nil {
-		if raw, ok := c.Metadata.(json.RawMessage); ok {
-			metadataBytes = raw
-		} else if b, ok := c.Metadata.([]byte); ok {
-			metadataBytes = json.RawMessage(b)
-		} else {
-			b, err := json.Marshal(c.Metadata)
-			if err != nil {
-				return nil, fmt.Errorf("serialize media metadata: %w", err)
-			}
-			metadataBytes = b
-		}
-	}
-
 	return &Media{
 		ID:          uuid.UUID(c.ID),
-		Type:        c.Type,
+		Type:        string(c.Type),
 		Title:       c.Title,
 		Status:      c.Status,
 		Monitored:   c.Monitored,
 		Provider:    c.PrimaryExternalId.Provider,
 		ProviderId:  c.PrimaryExternalId.Id,
 		ExternalIds: externalIds,
-		Metadata:    metadataBytes,
+		Metadata:    c.Metadata,
 		CreatedAt:   c.CreatedAt,
 		LastSync:    c.LastSync,
 		UpdatedAt:   c.UpdatedAt,
@@ -113,26 +99,12 @@ func fromCore(c *domain.Media) (*Media, error) {
 }
 
 func fromCoreItem(c domain.MediaItem) (MediaItem, error) {
-	var metadataBytes json.RawMessage
-	if c.Metadata != nil {
-		if raw, ok := c.Metadata.(json.RawMessage); ok {
-			metadataBytes = raw
-		} else if b, ok := c.Metadata.([]byte); ok {
-			metadataBytes = b
-		} else {
-			b, err := json.Marshal(c.Metadata)
-			if err != nil {
-				return MediaItem{}, fmt.Errorf("serialize item metadata: %w", err)
-			}
-			metadataBytes = b
-		}
-	}
 
 	return MediaItem{
 		ID:        c.ID,
 		MediaID:   uuid.UUID(c.MediaId),
 		Monitored: c.Monitored,
 		Status:    string(c.Status),
-		Metadata:  metadataBytes,
+		Metadata:  c.Metadata,
 	}, nil
 }

@@ -3,6 +3,7 @@ package domain
 import (
 	"time"
 
+	"github.com/goccy/go-json"
 	"github.com/google/uuid"
 )
 
@@ -14,6 +15,22 @@ func (id MediaId) UUID() uuid.UUID    { return uuid.UUID(id) }
 func (id MediaId) String() string     { return uuid.UUID(id).String() }
 func NewMediaID(id uuid.UUID) MediaId { return MediaId(id) }
 func GenerateMediaID() MediaId        { return MediaId(uuid.New()) }
+func (id MediaId) MarshalJSON() ([]byte, error) {
+	return json.Marshal(uuid.UUID(id).String())
+}
+
+func (id *MediaId) UnmarshalJSON(data []byte) error {
+	var s string
+	if err := json.Unmarshal(data, &s); err != nil {
+		return err
+	}
+	parsed, err := uuid.Parse(s)
+	if err != nil {
+		return err
+	}
+	*id = MediaId(parsed)
+	return nil
+}
 
 type ExternalId struct {
 	Provider string `json:"provider"`
@@ -27,13 +44,13 @@ type ItemStatus string
 
 type Media struct {
 	ID                MediaId
-	Type              string
+	Type              MediaType
 	Title             string
 	Status            string
 	Monitored         bool
 	PrimaryExternalId ExternalId
 	ExternalIds       []ExternalId
-	Metadata          any
+	Metadata          json.RawMessage
 	CreatedAt         time.Time
 	LastSync          time.Time
 	UpdatedAt         time.Time
@@ -44,10 +61,28 @@ type MediaItem struct {
 	MediaId   MediaId
 	Monitored bool
 	Status    ItemStatus
-	Metadata  any
+	Metadata  json.RawMessage
 }
 
 type MediaWithItems struct {
 	Media Media
 	Items []MediaItem
+}
+
+type MediaSummary struct {
+	Id            MediaId   `json:"id"`
+	Type          MediaType `json:"type"`
+	Title         string    `json:"title"`
+	OriginalTitle string    `json:"originalTitle"`
+	OriginalLang  string    `json:"originalLang"`
+	// Monitored Is any item monitored
+	Monitored   bool       `json:"monitored"`
+	Status      string     `json:"status"`
+	Summary     string     `json:"summary"`
+	ReleaseDate time.Time  `json:"releaseDate"`
+	Source      ExternalId `json:"source"`
+	PosterPath  string     `json:"posterPath"`
+	// Metadata Preferably doesn't contain a lot of data,
+	// it exists as a way for modules to add functionality
+	Metadata any `json:"metadata"`
 }

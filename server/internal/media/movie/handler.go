@@ -15,6 +15,15 @@ type Handler struct {
 	fetchers map[string]Fetcher
 }
 
+func (h *Handler) Type() domain.MediaType {
+	return MediaType
+}
+
+func (h *Handler) ToSummary(media domain.Media) (domain.MediaSummary, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
 func NewMovieHandler(fetchers map[string]Fetcher) *Handler {
 	return &Handler{fetchers: fetchers}
 }
@@ -31,7 +40,7 @@ func (h *Handler) FetchMedia(ctx context.Context, id domain.ExternalId) (*domain
 		return nil, err
 	}
 
-	movieMeta := Metadata{
+	_ = Metadata{
 		OriginalTitle: movie.OriginalTitle,
 		Overview:      movie.Overview,
 		Tagline:       movie.Tagline,
@@ -49,12 +58,12 @@ func (h *Handler) FetchMedia(ctx context.Context, id domain.ExternalId) (*domain
 
 	media := domain.Media{
 		ID:                mediaID,
-		Type:              string(MediaType),
+		Type:              MediaType,
 		Title:             movie.Title,
 		Status:            movie.Status,
 		PrimaryExternalId: id,
 		ExternalIds:       externalIds,
-		Metadata:          movieMeta,
+		Metadata:          nil, //TODO
 	}
 
 	// For movies, the item array just contains the movie itself as a single item

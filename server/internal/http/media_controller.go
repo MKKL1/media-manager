@@ -6,62 +6,55 @@ import (
 	"server/internal/metadata"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/goccy/go-json"
-	"go.opentelemetry.io/otel"
 )
-
-var tracer = otel.Tracer("http/media")
 
 type MediaController struct {
 	pullService *metadata.PullService
+	mdService   *metadata.Service
 }
 
-func NewMediaController(pullService *metadata.PullService) *MediaController {
-	return &MediaController{pullService: pullService}
+func NewMediaController(pullService *metadata.PullService, mdService *metadata.Service) *MediaController {
+	return &MediaController{pullService: pullService, mdService: mdService}
 }
 
-func (c *MediaController) Route(r *chi.Mux) http.Handler {
-	return r.Route("/api/1/media", func(r chi.Router) {
+func (c *MediaController) Route(r *chi.Mux) {
+	r.Route("/api/1/media", func(r chi.Router) {
 		r.Post("/pull", c.PullMedia)
+		r.Get("/list", c.List)
 	})
 }
 
-type pullMediaRequest struct {
-	Provider  string           `json:"provider"`
-	ID        string           `json:"id"`
-	MediaType domain.MediaType `json:"media_type"`
-}
+func (c *MediaController) List(w http.ResponseWriter, r *http.Request) {
+	var req queryMediaRequest
+	if err := decodeQuery(r, &req); err != nil {
+		RespondError(w, r, err)
+		return
+	}
 
-func (req pullMediaRequest) validate() error {
-	if req.Provider == "" || req.ID == "" {
-		return domain.ErrInvalidInput
+	list, err := c.mdService.List(r.Context(), req.ToDomain())
+	if err != nil {
+		RespondError(w, r, err)
+		return
 	}
-	if req.MediaType != "movie" && req.MediaType != "tv" {
-		return domain.ErrInvalidInput
-	}
-	return nil
+
+	writeJSON(w, http.StatusOK, map[string]any{"data": list})
 }
 
 func (c *MediaController) PullMedia(w http.ResponseWriter, r *http.Request) {
 	var req pullMediaRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		JSON(w, http.StatusBadRequest, map[string]string{"error": "invalid json"})
-		return
-	}
-
-	if err := req.validate(); err != nil {
-		Error(w, r, err)
+	if err := decodeJSON(r, &req); err != nil {
+		RespondError(w, r, err)
 		return
 	}
 
 	extID := domain.NewExternalId(req.Provider, req.ID)
 	instanceID, err := c.pullService.RequestPull(r.Context(), extID, req.MediaType)
 	if err != nil {
-		Error(w, r, err)
+		RespondError(w, r, err)
 		return
 	}
 
-	JSON(w, http.StatusAccepted, map[string]any{
+	writeJSON(w, http.StatusAccepted, map[string]any{
 		"status":      "queued",
 		"workflow_id": instanceID,
 	})

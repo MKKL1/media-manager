@@ -5,9 +5,13 @@ import (
 	"fmt"
 	"server/internal/domain"
 	"server/internal/metadata"
+	"time"
 
+	"github.com/goccy/go-json"
 	"github.com/google/uuid"
 )
+
+const summaryMaxLength = 150
 
 var _ metadata.MediaHandler = (*Handler)(nil)
 
@@ -17,6 +21,35 @@ type Handler struct {
 
 func NewTVHandler(fetchers map[string]Fetcher) *Handler {
 	return &Handler{fetchers: fetchers}
+}
+
+func (h *Handler) Type() domain.MediaType {
+	return MediaType
+}
+
+func (h *Handler) ToSummary(media domain.Media) (domain.MediaSummary, error) {
+	var meta Metadata
+
+	if len(media.Metadata) > 0 {
+		if err := json.Unmarshal(media.Metadata, &meta); err != nil {
+			return domain.MediaSummary{}, fmt.Errorf("json.Unmarshal: %w", err)
+		}
+	}
+
+	return domain.MediaSummary{
+		Id:            media.ID,
+		Type:          media.Type,
+		Title:         media.Title,
+		OriginalTitle: meta.OriginalTitle,
+		OriginalLang:  "",
+		Monitored:     media.Monitored,
+		Status:        media.Status,
+		Summary:       shorten(meta.Overview, summaryMaxLength) + "...",
+		ReleaseDate:   meta.FirstAirDate,
+		Source:        media.PrimaryExternalId,
+		PosterPath:    meta.Poster,
+		Metadata:      nil,
+	}, nil
 }
 
 func (h *Handler) FetchMedia(ctx context.Context, id domain.ExternalId) (*domain.MediaWithItems, error) {
@@ -42,7 +75,8 @@ func (h *Handler) FetchMedia(ctx context.Context, id domain.ExternalId) (*domain
 	var items []domain.MediaItem
 
 	for _, se := range seasons {
-		var epInfo []EpisodeInfo
+		var epCount = 0
+		var releasedEpCount = 0
 
 		for _, ep := range se.Episodes {
 			itemID := uuid.New()
@@ -57,22 +91,27 @@ func (h *Handler) FetchMedia(ctx context.Context, id domain.ExternalId) (*domain
 				EpisodeNumber: ep.EpisodeNumber,
 			}
 
+			epMetaJSON, err := json.Marshal(epMeta)
+			if err != nil {
+				return nil, fmt.Errorf("json.Marshal epMeta: %w", err)
+			}
+
 			items = append(items, domain.MediaItem{
 				ID:       itemID,
 				MediaId:  mediaID,
 				Status:   "Unknown",
-				Metadata: epMeta,
+				Metadata: epMetaJSON,
 			})
 
-			epInfo = append(epInfo, EpisodeInfo{
-				EpisodeNumber: ep.EpisodeNumber,
-				ID:            itemID,
-			})
+			epCount++
+			//TODO get actual data for that
+			releasedEpCount++
 		}
 
 		seasonData = append(seasonData, SeasonMetadata{
-			SeasonNumber: se.SeasonNumber,
-			Episodes:     epInfo,
+			SeasonNumber:         se.SeasonNumber,
+			EpisodeCount:         epCount,
+			EpsiodeReleasedCount: releasedEpCount,
 		})
 	}
 
@@ -91,17 +130,27 @@ func (h *Handler) FetchMedia(ctx context.Context, id domain.ExternalId) (*domain
 		Seasons:       seasonData,
 	}
 
+	tvMetaJSON, err := json.Marshal(tvMeta)
+	if err != nil {
+		return nil, fmt.Errorf("json.Marshal tvMeta: %w", err)
+	}
+
 	externalIds := []domain.ExternalId{id}
 	externalIds = append(externalIds, show.ExternalIDs...)
 
+	now := time.Now()
 	media := domain.Media{
 		ID:                mediaID,
-		Type:              string(MediaType),
+		Type:              MediaType,
 		Title:             show.Title,
 		Status:            show.Status,
+		Monitored:         false,
 		PrimaryExternalId: id,
 		ExternalIds:       externalIds,
-		Metadata:          tvMeta,
+		Metadata:          tvMetaJSON,
+		CreatedAt:         now,
+		LastSync:          now,
+		UpdatedAt:         now,
 	}
 
 	return &domain.MediaWithItems{
@@ -160,4 +209,13 @@ func flattenEpisodeGroupDetail(detail *EpisodeGroupDetail) []ProviderSeason {
 		})
 	}
 	return out
+}
+
+// shorten is safe
+func shorten(s string, max int) string {
+	runes := []rune(s)
+	if len(runes) <= max {
+		return s
+	}
+	return string(runes[:max])
 }

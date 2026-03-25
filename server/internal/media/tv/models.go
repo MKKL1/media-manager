@@ -3,8 +3,6 @@ package tv
 import (
 	"server/internal/domain"
 	"time"
-
-	"github.com/google/uuid"
 )
 
 const MediaType domain.MediaType = "tv"
@@ -31,13 +29,9 @@ type Metadata struct {
 }
 
 type SeasonMetadata struct {
-	SeasonNumber int           `json:"seasonNumber"`
-	Episodes     []EpisodeInfo `json:"episodes"`
-}
-
-type EpisodeInfo struct {
-	EpisodeNumber int       `json:"episodeNumber"`
-	ID            uuid.UUID `json:"id"`
+	SeasonNumber         int `json:"seasonNumber"`
+	EpisodeCount         int `json:"epCount"`         //Count of episodes declared by provider
+	EpsiodeReleasedCount int `json:"epReleasedCount"` //Count of episodes that are actually available/released to public
 }
 
 type EpisodeMetadata struct {
@@ -123,4 +117,5 @@ type ProviderEpisode struct {
 	Rating         float32
 	VoteCount      int
 	IsSeasonFinale bool
+	//TODO IsMidSeasonFinale, could be one string/enum
 }
