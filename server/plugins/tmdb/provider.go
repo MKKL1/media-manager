@@ -16,6 +16,7 @@ var (
 	_ tv.Searcher            = (*Provider)(nil)
 	_ tv.Fetcher             = (*Provider)(nil)
 	_ tv.EpisodeGroupFetcher = (*Provider)(nil)
+	_ domain.ImageResolver   = (*Provider)(nil)
 )
 
 type Provider struct {

@@ -28,6 +28,16 @@ type MediaItem struct {
 	Metadata  json.RawMessage `bun:"metadata,type:jsonb"`
 }
 
+type MediaImage struct {
+	bun.BaseModel `bun:"table:media_images"`
+
+	ID       uuid.UUID `bun:"id,pk,type:uuid,default:gen_random_uuid()"`
+	MediaID  uuid.UUID `bun:"media_id,type:uuid,notnull"`
+	Role     string    `bun:"role,notnull"`
+	Provider string    `bun:"provider,notnull"`
+	Path     string    `bun:"path,notnull"`
+}
+
 type Media struct {
 	bun.BaseModel `bun:"table:media"`
 
@@ -45,6 +55,7 @@ type Media struct {
 	DeletedAt  sql.Null[time.Time] `bun:"deleted_at"` //TODO not sure what to do with it, but it could be useful to have "trash"
 
 	ExternalIds []ExternalId `bun:"rel:has-many,join:id=media_id"`
+	Images      []MediaImage `bun:"rel:has-many,join:id=media_id"`
 }
 
 func (m *Media) toCore() *domain.Media {
@@ -53,6 +64,16 @@ func (m *Media) toCore() *domain.Media {
 		externalIds[i] = domain.ExternalId{
 			Provider: ext.Provider,
 			Id:       ext.Value,
+		}
+	}
+
+	images := make([]domain.Image, len(m.Images))
+	for i, img := range m.Images {
+		images[i] = domain.Image{
+			ID:           img.ID,
+			Role:         domain.ImageRole(img.Role),
+			Provider:     img.Provider,
+			ExternalPath: img.Path,
 		}
 	}
 
@@ -68,6 +89,7 @@ func (m *Media) toCore() *domain.Media {
 		CreatedAt:         m.CreatedAt,
 		LastSync:          m.LastSync,
 		UpdatedAt:         m.UpdatedAt,
+		Images:            images,
 	}
 }
 
@@ -82,6 +104,17 @@ func fromCore(c *domain.Media) (*Media, error) {
 		}
 	}
 
+	images := make([]MediaImage, len(c.Images))
+	for i, img := range c.Images {
+		images[i] = MediaImage{
+			ID:       img.ID,
+			MediaID:  uuid.UUID(c.ID),
+			Role:     string(img.Role),
+			Provider: img.Provider,
+			Path:     img.ExternalPath,
+		}
+	}
+
 	return &Media{
 		ID:          uuid.UUID(c.ID),
 		Type:        string(c.Type),
@@ -91,6 +124,7 @@ func fromCore(c *domain.Media) (*Media, error) {
 		Provider:    c.PrimaryExternalId.Provider,
 		ProviderId:  c.PrimaryExternalId.Id,
 		ExternalIds: externalIds,
+		Images:      images,
 		Metadata:    c.Metadata,
 		CreatedAt:   c.CreatedAt,
 		LastSync:    c.LastSync,

@@ -62,31 +62,7 @@ func (b BunMediaRepository) Store(ctx context.Context, media *domain.Media) erro
 	}
 
 	return b.db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
-		_, err := tx.NewInsert().
-			Model(m).
-			On("CONFLICT (id) DO UPDATE").
-			Set("title = EXCLUDED.title").
-			Set("status = EXCLUDED.status").
-			Set("monitored = EXCLUDED.monitored").
-			Set("metadata = EXCLUDED.metadata").
-			Set("last_sync = EXCLUDED.last_sync").
-			Set("updated_at = EXCLUDED.updated_at").
-			Exec(ctx)
-		if err != nil {
-			return fmt.Errorf("upsert media: %w", err)
-		}
-
-		if len(m.ExternalIds) > 0 {
-			_, err = tx.NewInsert().
-				Model(&m.ExternalIds).
-				On("CONFLICT (provider, value) DO NOTHING").
-				Exec(ctx)
-			if err != nil {
-				return fmt.Errorf("upsert external ids: %w", err)
-			}
-		}
-
-		return nil
+		return upsertMedia(ctx, tx, m)
 	})
 }
 
@@ -98,40 +74,19 @@ func (b BunMediaRepository) StoreMediaWithItems(ctx context.Context, m domain.Me
 
 	items := make([]MediaItem, len(m.Items))
 	for i, item := range m.Items {
-		dbItem, err := fromCoreItem(item)
+		items[i], err = fromCoreItem(item)
 		if err != nil {
-			return err
+			return fmt.Errorf("convert item %d: %w", i, err)
 		}
-		items[i] = dbItem
 	}
 
 	return b.db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
-		_, err := tx.NewInsert().
-			Model(media).
-			On("CONFLICT (id) DO UPDATE").
-			Set("title = EXCLUDED.title").
-			Set("status = EXCLUDED.status").
-			Set("monitored = EXCLUDED.monitored").
-			Set("metadata = EXCLUDED.metadata").
-			Set("last_sync = EXCLUDED.last_sync").
-			Set("updated_at = EXCLUDED.updated_at").
-			Exec(ctx)
-		if err != nil {
-			return fmt.Errorf("upsert media: %w", err)
-		}
-
-		if len(media.ExternalIds) > 0 {
-			_, err = tx.NewInsert().
-				Model(&media.ExternalIds).
-				On("CONFLICT (provider, value) DO NOTHING").
-				Exec(ctx)
-			if err != nil {
-				return fmt.Errorf("upsert external ids: %w", err)
-			}
+		if err := upsertMedia(ctx, tx, media); err != nil {
+			return err
 		}
 
 		if len(items) > 0 {
-			_, err = tx.NewInsert().
+			_, err := tx.NewInsert().
 				Model(&items).
 				On("CONFLICT (id) DO UPDATE").
 				Set("monitored = EXCLUDED.monitored").
@@ -188,6 +143,7 @@ func (b BunMediaRepository) List(ctx context.Context, q domain.MediaQuery) ([]do
 	selectQuery := b.db.NewSelect().
 		Model(&dbMedia).
 		Relation("ExternalIds"). //not sure if it's needed here, but will leave it as is
+		Relation("Images").
 		Where("deleted_at IS NULL")
 
 	if q.Type != "" {
@@ -237,4 +193,45 @@ func (b BunMediaRepository) List(ctx context.Context, q domain.MediaQuery) ([]do
 	}
 
 	return mediaList, total, nil
+}
+
+func upsertMedia(ctx context.Context, tx bun.Tx, m *Media) error {
+	_, err := tx.NewInsert().
+		Model(m).
+		On("CONFLICT (id) DO UPDATE").
+		Set("title = EXCLUDED.title").
+		Set("status = EXCLUDED.status").
+		Set("monitored = EXCLUDED.monitored").
+		Set("metadata = EXCLUDED.metadata").
+		Set("last_sync = EXCLUDED.last_sync").
+		Set("updated_at = EXCLUDED.updated_at").
+		Exec(ctx)
+	if err != nil {
+		return fmt.Errorf("upsert media: %w", err)
+	}
+
+	if len(m.ExternalIds) > 0 {
+		_, err = tx.NewInsert().
+			Model(&m.ExternalIds).
+			On("CONFLICT (provider, value) DO NOTHING").
+			Exec(ctx)
+		if err != nil {
+			return fmt.Errorf("upsert external ids: %w", err)
+		}
+	}
+
+	if len(m.Images) > 0 {
+		_, err = tx.NewInsert().
+			Model(&m.Images).
+			On("CONFLICT (id) DO UPDATE").
+			Set("role = EXCLUDED.role").
+			Set("provider = EXCLUDED.provider").
+			Set("path = EXCLUDED.path").
+			Exec(ctx)
+		if err != nil {
+			return fmt.Errorf("upsert images: %w", err)
+		}
+	}
+
+	return nil
 }

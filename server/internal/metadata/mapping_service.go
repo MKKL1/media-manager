@@ -3,9 +3,12 @@ package metadata
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/rs/zerolog"
 )
+
+const updateTimeout = time.Hour * 3
 
 type MappingService struct {
 	repo    MappingRepository
@@ -33,9 +36,17 @@ func (s *MappingService) SyncAll(ctx context.Context) error {
 }
 
 func (s *MappingService) syncOne(ctx context.Context, src MappingSource) error {
-	lastVersion, err := s.repo.GetSourceVersion(ctx, src.Name())
+	lastVersion, triedAt, err := s.repo.GetSourceVersion(ctx, src.Name())
 	if err != nil {
 		return fmt.Errorf("get version: %w", err)
+	}
+
+	if time.Now().Before(triedAt.Add(updateTimeout)) {
+		zerolog.Ctx(ctx).Debug().
+			Str("source", src.Name()).
+			Time("next_update", time.Now().Add(updateTimeout)).
+			Msg("tried within time window, skipping")
+		return nil
 	}
 
 	data, err := src.Load(ctx, lastVersion)
@@ -44,6 +55,10 @@ func (s *MappingService) syncOne(ctx context.Context, src MappingSource) error {
 	}
 	if data == nil {
 		zerolog.Ctx(ctx).Debug().Str("source", src.Name()).Msg("unchanged, skipping")
+		err := s.repo.MarkAttempt(ctx, src.Name())
+		if err != nil {
+			return fmt.Errorf("s.repo.MarkAttempt: %w", err)
+		}
 		return nil
 	}
 

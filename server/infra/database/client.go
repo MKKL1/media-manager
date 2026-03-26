@@ -43,6 +43,7 @@ func Migrate(ctx context.Context, db *bun.DB) error {
 		(*MappingSource)(nil),
 		(*ProviderMapping)(nil),
 		(*SeasonMapping)(nil),
+		(*MediaImage)(nil),
 	}
 
 	for _, model := range models {

@@ -9,6 +9,7 @@ import (
 	"server/infra/database"
 	"server/infra/telemetry"
 	wfinfra "server/infra/workflow"
+	"server/internal/domain"
 	apphttp "server/internal/http"
 	"server/internal/media/movie"
 	"server/internal/media/tv"
@@ -73,7 +74,7 @@ func New(ctx context.Context, cfg *Config) (*App, ShutdownFunc, error) {
 	provider := tmdb.NewProvider(cfg.TMDB.APIKey)
 	handlers := metadata.Handlers{
 		movie.MediaType: movie.NewMovieHandler(map[string]movie.Fetcher{"tmdb": provider}),
-		tv.MediaType:    tv.NewTVHandler(map[string]tv.Fetcher{"tmdb": provider}),
+		tv.MediaType:    tv.NewTVHandler(map[string]tv.Fetcher{"tmdb": provider}, map[string]domain.ImageResolver{"tmdb": provider}),
 	}
 
 	wfBackend := wfinfra.NewBackend(

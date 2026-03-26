@@ -3,6 +3,7 @@ package database
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"server/internal/domain"
 	"server/internal/metadata"
@@ -17,6 +18,7 @@ type MappingSource struct {
 	Name          string    `bun:"name,pk"`
 	Version       string    `bun:"version"`
 	SyncedAt      time.Time `bun:"synced_at"`
+	TriedAt       time.Time `bun:"tried_at"`
 }
 
 type ProviderMapping struct {
@@ -130,20 +132,30 @@ func (r *MappingRepository) ReplaceMappings(ctx context.Context, source string, 
 	return tx.Commit()
 }
 
-func (r *MappingRepository) GetSourceVersion(ctx context.Context, source string) (string, error) {
+func (r *MappingRepository) GetSourceVersion(ctx context.Context, source string) (string, time.Time, error) {
 	var version string
+	var triedAt time.Time
 	err := r.db.NewSelect().
 		Model((*MappingSource)(nil)).
-		Column("version").
+		Column("version", "tried_at").
 		Where("name = ?", source).
-		Scan(ctx, &version)
+		Scan(ctx, &version, &triedAt)
 	if err != nil {
-		if err == sql.ErrNoRows {
-			return "", nil
+		if errors.Is(err, sql.ErrNoRows) {
+			return "", time.Time{}, nil
 		}
-		return "", err
+		return "", time.Time{}, err
 	}
-	return version, nil
+	return version, triedAt, nil
+}
+
+func (r *MappingRepository) MarkAttempt(ctx context.Context, source string) error {
+	_, err := r.db.NewUpdate().
+		Model((*MappingSource)(nil)).
+		Set("tried_at = NOW()").
+		Where("name = ?", source).
+		Exec(ctx)
+	return err
 }
 
 func (r *MappingRepository) SetSourceVersion(ctx context.Context, source string, version string) error {
@@ -152,10 +164,12 @@ func (r *MappingRepository) SetSourceVersion(ctx context.Context, source string,
 			Name:     source,
 			Version:  version,
 			SyncedAt: time.Now(),
+			TriedAt:  time.Now(),
 		}).
 		On("CONFLICT (name) DO UPDATE").
 		Set("version = EXCLUDED.version").
 		Set("synced_at = EXCLUDED.synced_at").
+		Set("tried_at = EXCLUDED.tried_at").
 		Exec(ctx)
 	return err
 }

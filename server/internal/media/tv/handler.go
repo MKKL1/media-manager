@@ -16,11 +16,12 @@ const summaryMaxLength = 150
 var _ metadata.MediaHandler = (*Handler)(nil)
 
 type Handler struct {
-	fetchers map[string]Fetcher
+	fetchers       map[string]Fetcher
+	imageResolvers map[string]domain.ImageResolver
 }
 
-func NewTVHandler(fetchers map[string]Fetcher) *Handler {
-	return &Handler{fetchers: fetchers}
+func NewTVHandler(fetchers map[string]Fetcher, imageResolvers map[string]domain.ImageResolver) *Handler {
+	return &Handler{fetchers: fetchers, imageResolvers: imageResolvers}
 }
 
 func (h *Handler) Type() domain.MediaType {
@@ -36,6 +37,24 @@ func (h *Handler) ToSummary(media domain.Media) (domain.MediaSummary, error) {
 		}
 	}
 
+	ires, ok := h.imageResolvers[media.PrimaryExternalId.Provider]
+	if !ok {
+		return domain.MediaSummary{}, fmt.Errorf("h.imageResolvers %s not found for tv: %w", media.PrimaryExternalId.Provider, domain.ErrNoProvider)
+	}
+
+	var img domain.Image
+	var found = false
+	for _, e := range media.Images {
+		if e.Role == domain.ImageRolePoster {
+			img = e
+			found = true
+			break
+		}
+	}
+	var posterPath = ""
+	if found {
+		posterPath = ires.Resolve(img, domain.ImageQualityThumb)
+	}
 	return domain.MediaSummary{
 		Id:            media.ID,
 		Type:          media.Type,
@@ -47,7 +66,7 @@ func (h *Handler) ToSummary(media domain.Media) (domain.MediaSummary, error) {
 		Summary:       shorten(meta.Overview, summaryMaxLength) + "...",
 		ReleaseDate:   meta.FirstAirDate,
 		Source:        media.PrimaryExternalId,
-		PosterPath:    meta.Poster,
+		PosterPath:    posterPath,
 		Metadata:      nil,
 	}, nil
 }
@@ -138,6 +157,21 @@ func (h *Handler) FetchMedia(ctx context.Context, id domain.ExternalId) (*domain
 	externalIds := []domain.ExternalId{id}
 	externalIds = append(externalIds, show.ExternalIDs...)
 
+	images := []domain.Image{
+		{
+			ID:           uuid.New(),
+			Role:         domain.ImageRolePoster,
+			Provider:     id.Provider,
+			ExternalPath: show.Poster,
+		},
+		{
+			ID:           uuid.New(),
+			Role:         domain.ImageRoleBackdrop,
+			Provider:     id.Provider,
+			ExternalPath: show.Backdrop,
+		},
+	}
+
 	now := time.Now()
 	media := domain.Media{
 		ID:                mediaID,
@@ -151,6 +185,7 @@ func (h *Handler) FetchMedia(ctx context.Context, id domain.ExternalId) (*domain
 		CreatedAt:         now,
 		LastSync:          now,
 		UpdatedAt:         now,
+		Images:            images,
 	}
 
 	return &domain.MediaWithItems{

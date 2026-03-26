@@ -50,6 +50,7 @@ type Media struct {
 	Monitored         bool
 	PrimaryExternalId ExternalId
 	ExternalIds       []ExternalId
+	Images            []Image
 	Metadata          json.RawMessage
 	CreatedAt         time.Time
 	LastSync          time.Time

@@ -88,7 +88,7 @@ type ProviderShow struct {
 	OriginCountry    []string
 	Networks         []string
 	CreatedBy        []string
-	Poster           string
+	Poster           string //Different services may provide it differently, but leaving it as a simple path for now
 	Backdrop         string
 	Rating           float32
 	VoteCount        int
