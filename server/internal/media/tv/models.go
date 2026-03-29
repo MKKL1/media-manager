@@ -46,7 +46,7 @@ type EpisodeMetadata struct {
 
 type Episode struct {
 	domain.MediaItem
-	ShowID        domain.MediaId
+	ShowID        domain.MediaID
 	SeasonNumber  int
 	EpisodeNumber int
 	Title         string
@@ -60,7 +60,7 @@ type SearchQuery struct {
 }
 
 type SearchResult struct {
-	ExternalID domain.ExternalId
+	ExternalID domain.SourceID
 	Title      string
 	Year       int
 	Overview   string
@@ -69,8 +69,8 @@ type SearchResult struct {
 }
 
 type ProviderShow struct {
-	ExternalID       domain.ExternalId
-	ExternalIDs      []domain.ExternalId
+	ExternalID       domain.SourceID
+	ExternalIDs      []domain.SourceID
 	Title            string
 	OriginalTitle    string
 	OriginalLanguage string
@@ -99,14 +99,14 @@ type ProviderSeason struct {
 	SeasonNumber int
 	Rating       *float32
 	VoteCount    *int
-	ExternalID   *domain.ExternalId
+	ExternalID   *domain.SourceID
 	Title        *string
 	Episodes     []ProviderEpisode
 }
 
 type ProviderEpisode struct {
-	ExternalID     domain.ExternalId
-	ShowExternalID domain.ExternalId
+	ExternalID     domain.SourceID
+	ShowExternalID domain.SourceID
 	SeasonNumber   int
 	EpisodeNumber  int
 	Title          string

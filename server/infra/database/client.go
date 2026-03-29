@@ -38,7 +38,7 @@ func NewDB(connectionString string) (*bun.DB, error) {
 func Migrate(ctx context.Context, db *bun.DB) error {
 	models := []interface{}{
 		(*Media)(nil),
-		(*ExternalId)(nil),
+		(*MediaIdentity)(nil),
 		(*MediaItem)(nil),
 		(*MappingSource)(nil),
 		(*ProviderMapping)(nil),

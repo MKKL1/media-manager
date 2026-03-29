@@ -2,11 +2,12 @@ package http
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"server/internal/domain"
 
+	"github.com/bytedance/sonic"
 	"github.com/go-playground/validator/v10"
-	"github.com/goccy/go-json"
 	"github.com/rs/zerolog"
 )
 
@@ -39,7 +40,7 @@ type errorEnvelope struct {
 	Error APIError `json:"error"`
 }
 
-func RespondError(w http.ResponseWriter, r *http.Request, err error) {
+func RespondError(w http.ResponseWriter, r *http.Request, err error) error {
 	if ve, ok := errors.AsType[validator.ValidationErrors](err); ok {
 		fields := make([]FieldError, len(ve))
 		for i, fe := range ve {
@@ -49,14 +50,13 @@ func RespondError(w http.ResponseWriter, r *http.Request, err error) {
 				Message: fieldMessage(fe),
 			}
 		}
-		writeJSON(w, http.StatusUnprocessableEntity, errorEnvelope{
+		return writeJSON(w, http.StatusUnprocessableEntity, errorEnvelope{
 			Error: APIError{
 				Code:    "validation_failed",
 				Message: "one or more fields failed validation",
 				Fields:  fields,
 			},
 		})
-		return
 	}
 
 	code, status, msg := "internal", http.StatusInternalServerError, "internal server error"
@@ -74,15 +74,23 @@ func RespondError(w http.ResponseWriter, r *http.Request, err error) {
 		zerolog.Ctx(r.Context()).Error().Err(err).Msg("unhandled error")
 	}
 
-	writeJSON(w, status, errorEnvelope{
+	return writeJSON(w, status, errorEnvelope{
 		Error: APIError{Code: code, Message: msg},
 	})
 }
 
-func writeJSON(w http.ResponseWriter, status int, v any) {
+func writeJSON(w http.ResponseWriter, status int, v any) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(v)
+	data, err := sonic.Marshal(v)
+	if err != nil {
+		return fmt.Errorf("sonic.Marshal: %w", err)
+	}
+	_, err = w.Write(data)
+	if err != nil {
+		return fmt.Errorf("w.Write: %w", err)
+	}
+	return nil
 }
 
 func fieldMessage(fe validator.FieldError) string {

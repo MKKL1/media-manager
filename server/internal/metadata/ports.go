@@ -9,7 +9,7 @@ import (
 // Implemented by movie.Handler, tv.Handler.
 type MediaHandler interface {
 	Type() domain.MediaType
-	FetchMedia(ctx context.Context, id domain.ExternalId) (*domain.MediaWithItems, error)
+	FetchMedia(ctx context.Context, id domain.MediaIdentity) (*domain.MediaWithItems, error)
 	ToSummary(media domain.Media) (domain.MediaSummary, error)
 }
 
@@ -19,9 +19,10 @@ type MappingSource interface {
 	Load(ctx context.Context, lastVersion string) (*MappingData, error)
 }
 
-//type Searcher interface {
-//	Search(ctx context.Context, q domain.SearchQuery) ([]domain.SearchResult, error)
-//}
+type SearchProvider interface {
+	Search(ctx context.Context, query domain.SearchQuery) ([]domain.SearchResult, error)
+}
+
 //
 //type Refresher interface {
 //	ShouldRefresh(media domain.Media) bool

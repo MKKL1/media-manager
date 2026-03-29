@@ -92,8 +92,9 @@ func New(ctx context.Context, cfg *Config) (*App, ShutdownFunc, error) {
 	pullSvc.Register(wfWorker)
 
 	mdSvc := metadata.NewService(mediaRepo, handlers)
+	searchSvc := metadata.NewSearchService([]metadata.SearchProvider{provider})
 	router := apphttp.NewRouter(logger)
-	apphttp.NewMediaController(pullSvc, mdSvc).Route(router)
+	apphttp.NewMediaController(pullSvc, mdSvc, searchSvc).Route(router)
 	router.Handle("/diag/*", http.StripPrefix("/diag", diag.NewServeMux(wfBackend)))
 
 	srv := &http.Server{Addr: cfg.HTTP.Addr, Handler: router}

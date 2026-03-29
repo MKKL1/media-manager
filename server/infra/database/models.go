@@ -2,20 +2,30 @@ package database
 
 import (
 	"database/sql"
+	"encoding/json"
 	"server/internal/domain"
 	"time"
 
-	"github.com/goccy/go-json"
 	"github.com/google/uuid"
 	"github.com/uptrace/bun"
 )
 
-type ExternalId struct {
-	bun.BaseModel `bun:"table:external_ids"`
+type MediaIdentity struct {
+	bun.BaseModel `bun:"table:external_ids"` //TODO rename
 
-	MediaID  uuid.UUID `bun:"media_id,type:uuid,notnull"`
-	Provider string    `bun:"provider,pk"`
-	Value    string    `bun:"value,pk"`
+	MediaID uuid.UUID `bun:"media_id,type:uuid,notnull"`
+	Kind    string    `bun:"kind,pk"`
+	Value   string    `bun:"value,pk"`
+}
+
+type MediaImage struct {
+	bun.BaseModel `bun:"table:media_images"`
+
+	ID      uuid.UUID `bun:"id,pk,type:uuid,default:gen_random_uuid()"`
+	MediaID uuid.UUID `bun:"media_id,type:uuid,notnull"`
+	Role    string    `bun:"role,notnull"`
+	Source  string    `bun:"source,notnull"`
+	Path    string    `bun:"path,notnull"`
 }
 
 type MediaItem struct {
@@ -28,16 +38,6 @@ type MediaItem struct {
 	Metadata  json.RawMessage `bun:"metadata,type:jsonb"`
 }
 
-type MediaImage struct {
-	bun.BaseModel `bun:"table:media_images"`
-
-	ID       uuid.UUID `bun:"id,pk,type:uuid,default:gen_random_uuid()"`
-	MediaID  uuid.UUID `bun:"media_id,type:uuid,notnull"`
-	Role     string    `bun:"role,notnull"`
-	Provider string    `bun:"provider,notnull"`
-	Path     string    `bun:"path,notnull"`
-}
-
 type Media struct {
 	bun.BaseModel `bun:"table:media"`
 
@@ -46,24 +46,24 @@ type Media struct {
 	Title      string              `bun:"title,notnull"`
 	Status     string              `bun:"status,notnull"`
 	Monitored  bool                `bun:"monitored,notnull"`
-	Provider   string              `bun:"provider,notnull"`
-	ProviderId string              `bun:"provider_id,notnull"`
+	SourceKind string              `bun:"source_kind,notnull"`
+	SourceID   string              `bun:"source_id,notnull"`
 	Metadata   json.RawMessage     `bun:"metadata,type:jsonb,notnull"`
 	CreatedAt  time.Time           `bun:"created_at,notnull"`
 	LastSync   time.Time           `bun:"last_sync,notnull"`
 	UpdatedAt  time.Time           `bun:"updated_at,notnull"`
-	DeletedAt  sql.Null[time.Time] `bun:"deleted_at"` //TODO not sure what to do with it, but it could be useful to have "trash"
+	DeletedAt  sql.Null[time.Time] `bun:"deleted_at"`
 
-	ExternalIds []ExternalId `bun:"rel:has-many,join:id=media_id"`
-	Images      []MediaImage `bun:"rel:has-many,join:id=media_id"`
+	ExternalIDs []MediaIdentity `bun:"rel:has-many,join:id=media_id"`
+	Images      []MediaImage    `bun:"rel:has-many,join:id=media_id"`
 }
 
 func (m *Media) toCore() *domain.Media {
-	externalIds := make([]domain.ExternalId, len(m.ExternalIds))
-	for i, ext := range m.ExternalIds {
-		externalIds[i] = domain.ExternalId{
-			Provider: ext.Provider,
-			Id:       ext.Value,
+	identities := make([]domain.MediaIdentity, len(m.ExternalIDs))
+	for i, ext := range m.ExternalIDs {
+		identities[i] = domain.MediaIdentity{
+			Kind: domain.SourceKind(ext.Kind),
+			ID:   ext.Value,
 		}
 	}
 
@@ -72,46 +72,45 @@ func (m *Media) toCore() *domain.Media {
 		images[i] = domain.Image{
 			ID:           img.ID,
 			Role:         domain.ImageRole(img.Role),
-			Provider:     img.Provider,
+			Source:       domain.Source(img.Source),
 			ExternalPath: img.Path,
 		}
 	}
 
 	return &domain.Media{
-		ID:                domain.MediaId(m.ID),
+		ID:                domain.MediaID(m.ID),
 		Type:              domain.MediaType(m.Type),
 		Title:             m.Title,
 		Status:            m.Status,
 		Monitored:         m.Monitored,
-		PrimaryExternalId: domain.NewExternalId(m.Provider, m.ProviderId),
-		ExternalIds:       externalIds,
+		PrimaryIdentity:   domain.NewMediaIdentity(domain.SourceKind(m.SourceKind), m.SourceID),
+		RelatedIdentities: identities,
+		Images:            images,
 		Metadata:          m.Metadata,
 		CreatedAt:         m.CreatedAt,
 		LastSync:          m.LastSync,
 		UpdatedAt:         m.UpdatedAt,
-		Images:            images,
 	}
 }
 
-// TODO remove error
-func fromCore(c *domain.Media) (*Media, error) {
-	externalIds := make([]ExternalId, len(c.ExternalIds))
-	for i, ext := range c.ExternalIds {
-		externalIds[i] = ExternalId{
-			MediaID:  uuid.UUID(c.ID),
-			Provider: ext.Provider,
-			Value:    ext.Id,
+func fromCore(c *domain.Media) *Media {
+	externalIDs := make([]MediaIdentity, len(c.RelatedIdentities))
+	for i, id := range c.RelatedIdentities {
+		externalIDs[i] = MediaIdentity{
+			MediaID: uuid.UUID(c.ID),
+			Kind:    string(id.Kind),
+			Value:   id.ID,
 		}
 	}
 
 	images := make([]MediaImage, len(c.Images))
 	for i, img := range c.Images {
 		images[i] = MediaImage{
-			ID:       img.ID,
-			MediaID:  uuid.UUID(c.ID),
-			Role:     string(img.Role),
-			Provider: img.Provider,
-			Path:     img.ExternalPath,
+			ID:      img.ID,
+			MediaID: uuid.UUID(c.ID),
+			Role:    string(img.Role),
+			Source:  string(img.Source),
+			Path:    img.ExternalPath,
 		}
 	}
 
@@ -121,24 +120,23 @@ func fromCore(c *domain.Media) (*Media, error) {
 		Title:       c.Title,
 		Status:      c.Status,
 		Monitored:   c.Monitored,
-		Provider:    c.PrimaryExternalId.Provider,
-		ProviderId:  c.PrimaryExternalId.Id,
-		ExternalIds: externalIds,
+		SourceKind:  string(c.PrimaryIdentity.Kind),
+		SourceID:    c.PrimaryIdentity.ID,
+		ExternalIDs: externalIDs,
 		Images:      images,
 		Metadata:    c.Metadata,
 		CreatedAt:   c.CreatedAt,
 		LastSync:    c.LastSync,
 		UpdatedAt:   c.UpdatedAt,
-	}, nil
+	}
 }
 
-func fromCoreItem(c domain.MediaItem) (MediaItem, error) {
-
+func fromCoreItem(c domain.MediaItem) MediaItem {
 	return MediaItem{
 		ID:        c.ID,
 		MediaID:   uuid.UUID(c.MediaId),
 		Monitored: c.Monitored,
 		Status:    string(c.Status),
 		Metadata:  c.Metadata,
-	}, nil
+	}
 }

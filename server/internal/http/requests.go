@@ -4,8 +4,8 @@ import (
 	"net/http"
 	"server/internal/domain"
 
+	json "github.com/bytedance/sonic"
 	"github.com/go-playground/validator/v10"
-	"github.com/goccy/go-json"
 	"github.com/gorilla/schema"
 )
 
@@ -60,4 +60,10 @@ func (q queryMediaRequest) ToDomain() domain.MediaQuery {
 			Offset: q.Offset,
 		},
 	}
+}
+
+type searchRequest struct {
+	Query    string `url:"query"    validate:"required,min=1"`
+	Year     int    `url:"year"     validate:"omitempty"`
+	Language string `url:"language" validate:"omitempty"`
 }

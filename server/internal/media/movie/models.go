@@ -31,7 +31,7 @@ type SearchQuery struct {
 }
 
 type SearchResult struct {
-	ExternalID domain.ExternalId
+	ExternalID domain.SourceID
 	Title      string
 	Year       int
 	Overview   string
@@ -40,8 +40,8 @@ type SearchResult struct {
 }
 
 type ProviderMovie struct {
-	ExternalID  domain.ExternalId
-	ExternalIDs []domain.ExternalId
+	ExternalID  domain.SourceID
+	ExternalIDs []domain.SourceID
 
 	Title            string
 	OriginalTitle    string

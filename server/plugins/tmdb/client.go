@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/goccy/go-json"
+	json "github.com/bytedance/sonic"
 	"github.com/hashicorp/go-retryablehttp"
 	"github.com/sony/gobreaker"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
@@ -113,6 +113,28 @@ func (c *Client) SearchMovies(ctx context.Context, params SearchMovieParams) ([]
 
 	var response struct {
 		Results []Movie `json:"results"`
+	}
+	if err := json.Unmarshal(data, &response); err != nil {
+		return nil, err
+	}
+
+	return response.Results, nil
+}
+
+func (c *Client) SearchMulti(ctx context.Context, query string, page int) ([]MultiSearchResult, error) {
+	q := url.Values{}
+	q.Set("query", query)
+	if page > 0 {
+		q.Set("page", strconv.Itoa(page))
+	}
+
+	data, err := c.get(ctx, "/3/search/multi", q)
+	if err != nil {
+		return nil, err
+	}
+
+	var response struct {
+		Results []MultiSearchResult `json:"results"`
 	}
 	if err := json.Unmarshal(data, &response); err != nil {
 		return nil, err

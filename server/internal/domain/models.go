@@ -1,57 +1,33 @@
 package domain
 
 import (
+	"encoding/json"
 	"time"
 
-	"github.com/goccy/go-json"
+	"github.com/bytedance/sonic"
 	"github.com/google/uuid"
 )
 
 type MediaType string
 
-type MediaId uuid.UUID
+type MediaID uuid.UUID
 
-func (id MediaId) UUID() uuid.UUID    { return uuid.UUID(id) }
-func (id MediaId) String() string     { return uuid.UUID(id).String() }
-func NewMediaID(id uuid.UUID) MediaId { return MediaId(id) }
-func GenerateMediaID() MediaId        { return MediaId(uuid.New()) }
-func (id MediaId) MarshalJSON() ([]byte, error) {
-	return json.Marshal(uuid.UUID(id).String())
-}
-
-func (id *MediaId) UnmarshalJSON(data []byte) error {
-	var s string
-	if err := json.Unmarshal(data, &s); err != nil {
-		return err
-	}
-	parsed, err := uuid.Parse(s)
-	if err != nil {
-		return err
-	}
-	*id = MediaId(parsed)
-	return nil
-}
-
-type ExternalId struct {
-	Provider string `json:"provider"`
-	Id       string `json:"id"`
-}
-
-func (id ExternalId) String() string               { return id.Provider + ":" + id.Id }
-func NewExternalId(provider, id string) ExternalId { return ExternalId{provider, id} }
+func (id MediaID) String() string     { return uuid.UUID(id).String() }
+func NewMediaID(id uuid.UUID) MediaID { return MediaID(id) }
+func GenerateMediaID() MediaID        { return MediaID(uuid.New()) }
 
 type ItemStatus string
 
 type Media struct {
-	ID                MediaId
+	ID                MediaID
 	Type              MediaType
 	Title             string
 	Status            string
 	Monitored         bool
-	PrimaryExternalId ExternalId
-	ExternalIds       []ExternalId
+	PrimaryIdentity   MediaIdentity
+	RelatedIdentities []MediaIdentity
 	Images            []Image
-	Metadata          json.RawMessage
+	Metadata          json.RawMessage //This shouldn't be json, but instead some metadata object
 	CreatedAt         time.Time
 	LastSync          time.Time
 	UpdatedAt         time.Time
@@ -59,7 +35,7 @@ type Media struct {
 
 type MediaItem struct {
 	ID        uuid.UUID
-	MediaId   MediaId
+	MediaId   MediaID
 	Monitored bool
 	Status    ItemStatus
 	Metadata  json.RawMessage
@@ -71,19 +47,40 @@ type MediaWithItems struct {
 }
 
 type MediaSummary struct {
-	Id            MediaId   `json:"id"`
-	Type          MediaType `json:"type"`
-	Title         string    `json:"title"`
-	OriginalTitle string    `json:"originalTitle"`
-	OriginalLang  string    `json:"originalLang"`
+	ID            MediaID
+	Type          MediaType
+	Title         string
+	OriginalTitle string
+	OriginalLang  string
 	// Monitored Is any item monitored
-	Monitored   bool       `json:"monitored"`
-	Status      string     `json:"status"`
-	Summary     string     `json:"summary"`
-	ReleaseDate time.Time  `json:"releaseDate"`
-	Source      ExternalId `json:"source"`
-	PosterPath  string     `json:"posterPath"`
+	Monitored       bool
+	Status          string
+	Summary         string
+	ReleaseDate     time.Time
+	PrimaryIdentity MediaIdentity
+	PosterPath      ImageURL
 	// Metadata Preferably doesn't contain a lot of data,
 	// it exists as a way for modules to add functionality
-	Metadata any `json:"metadata"`
+	Metadata any
+}
+
+type MediaMetadata json.RawMessage
+
+func (m MediaMetadata) Raw() json.RawMessage {
+	return json.RawMessage(m)
+}
+
+func (m MediaMetadata) Decode(v any) error {
+	if len(m) == 0 {
+		return nil
+	}
+	return sonic.Unmarshal(m, v)
+}
+
+func NewMetadata(v any) (MediaMetadata, error) {
+	b, err := sonic.Marshal(v)
+	if err != nil {
+		return nil, err
+	}
+	return MediaMetadata(b), nil
 }

@@ -18,8 +18,8 @@ import (
 )
 
 type PullInput struct {
-	ExtID     domain.ExternalId `json:"ext_id"`
-	MediaType domain.MediaType  `json:"media_type"`
+	ExtID     domain.MediaIdentity `json:"media_identity"`
+	MediaType domain.MediaType     `json:"media_type"`
 }
 
 type PullResult struct {
@@ -28,14 +28,14 @@ type PullResult struct {
 }
 
 type PullService struct {
-	repo     MediaRepository
+	repo     domain.MediaRepository
 	handlers Handlers
 	wfClient *client.Client
 	logger   zerolog.Logger // stored so activities can use it directly
 }
 
 func NewPullService(
-	repo MediaRepository,
+	repo domain.MediaRepository,
 	handlers Handlers,
 	wfClient *client.Client,
 	logger zerolog.Logger,
@@ -55,7 +55,7 @@ func (s *PullService) Register(w *worker.Worker) {
 	w.RegisterActivity(s.storeMedia)
 }
 
-func (s *PullService) RequestPull(ctx context.Context, extID domain.ExternalId, mediaType domain.MediaType) (string, error) {
+func (s *PullService) RequestPull(ctx context.Context, extID domain.MediaIdentity, mediaType domain.MediaType) (string, error) {
 	instanceID := uuid.NewString()
 
 	_, err := s.wfClient.CreateWorkflowInstance(
@@ -114,7 +114,7 @@ func (s *PullService) run(
 
 func (s *PullService) lookupExisting(
 	ctx context.Context,
-	extID domain.ExternalId,
+	extID domain.MediaIdentity,
 ) (_ *domain.Media, err error) {
 	ctx, end := telemetry.Start(ctx, "metadata.LookupExisting",
 		trace.WithAttributes(attribute.String("ext_id", extID.String())),
@@ -133,7 +133,7 @@ func (s *PullService) lookupExisting(
 
 func (s *PullService) fetchMetadata(
 	ctx context.Context,
-	extID domain.ExternalId,
+	extID domain.MediaIdentity,
 	mediaType domain.MediaType,
 ) (_ domain.MediaWithItems, err error) {
 	ctx, end := telemetry.Start(ctx, "metadata.FetchMetadata",

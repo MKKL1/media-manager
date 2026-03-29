@@ -28,7 +28,7 @@ var qualityMap = map[domain.ImageQuality]map[domain.ImageRole]string{
 	},
 }
 
-func (p *Provider) Resolve(img domain.Image, quality domain.ImageQuality) string {
+func (p *Provider) Resolve(img domain.Image, quality domain.ImageQuality) domain.ImageURL {
 	sizes, ok := qualityMap[quality]
 	if !ok {
 		sizes = qualityMap[domain.ImageQualityMedium]
@@ -37,5 +37,5 @@ func (p *Provider) Resolve(img domain.Image, quality domain.ImageQuality) string
 	if !ok {
 		size = "original"
 	}
-	return imageBaseURL + size + img.ExternalPath
+	return domain.ImageURL(imageBaseURL + size + img.ExternalPath)
 }

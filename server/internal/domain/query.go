@@ -30,8 +30,8 @@ type MediaQuery struct {
 }
 
 type MediaPage struct {
-	Items  []MediaSummary `json:"items"`
-	Total  int            `json:"total"`
-	Offset int            `json:"offset"`
-	Limit  int            `json:"limit"`
+	Items  []MediaSummary
+	Total  int
+	Offset int
+	Limit  int
 }

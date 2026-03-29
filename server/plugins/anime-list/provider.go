@@ -100,29 +100,29 @@ func (p Source) Load(ctx context.Context, lastVersion string) (*metadata.Mapping
 	}, nil
 }
 func (a *xmlAnime) toMappingEntry() metadata.MappingEntry {
-	anidbID := domain.NewExternalId(domain.ProviderAniDB, itoa(a.AniDBID))
+	anidbID := domain.NewMediaIdentity(domain.ProviderAniDB, itoa(a.AniDBID))
 
 	entry := metadata.MappingEntry{
-		IDs: []domain.ExternalId{anidbID},
+		IDs: []domain.SourceID{anidbID},
 	}
 
 	// tvdbid="movie" means no tvdb series
 	if a.TVDBID != "" && a.TVDBID != "movie" {
-		entry.IDs = append(entry.IDs, domain.NewExternalId(domain.ProviderTVDB, a.TVDBID))
+		entry.IDs = append(entry.IDs, domain.NewMediaIdentity(domain.ProviderTVDB, a.TVDBID))
 	}
 
 	// tmdbtv = tmdb TV series ID
 	if a.TMDBTv != "" {
-		entry.IDs = append(entry.IDs, domain.NewExternalId(domain.ProviderTMDBTV, a.TMDBTv))
+		entry.IDs = append(entry.IDs, domain.NewMediaIdentity(domain.ProviderTMDBTV, a.TMDBTv))
 	}
 
 	// tmdbid = tmdb movie ID
 	if a.TMDBId != "" {
-		entry.IDs = append(entry.IDs, domain.NewExternalId(domain.ProviderTMDBMovie, a.TMDBId))
+		entry.IDs = append(entry.IDs, domain.NewMediaIdentity(domain.ProviderTMDBMovie, a.TMDBId))
 	}
 
 	if a.IMDBId != "" {
-		entry.IDs = append(entry.IDs, domain.NewExternalId(domain.ProviderIMDB, a.IMDBId))
+		entry.IDs = append(entry.IDs, domain.NewMediaIdentity(domain.ProviderIMDB, a.IMDBId))
 	}
 
 	// Season mappings — "a" means all seasons, skip those

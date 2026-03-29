@@ -6,17 +6,17 @@ import (
 	"server/internal/domain"
 	"server/internal/media/movie"
 	"server/internal/media/tv"
+	"server/internal/metadata"
 	"strconv"
 	"time"
 )
 
 var (
-	_ movie.Searcher         = (*Provider)(nil)
-	_ movie.Fetcher          = (*Provider)(nil)
-	_ tv.Searcher            = (*Provider)(nil)
-	_ tv.Fetcher             = (*Provider)(nil)
-	_ tv.EpisodeGroupFetcher = (*Provider)(nil)
-	_ domain.ImageResolver   = (*Provider)(nil)
+	_ movie.Fetcher           = (*Provider)(nil)
+	_ tv.Fetcher              = (*Provider)(nil)
+	_ tv.EpisodeGroupFetcher  = (*Provider)(nil)
+	_ domain.ImageResolver    = (*Provider)(nil)
+	_ metadata.SearchProvider = (*Provider)(nil)
 )
 
 type Provider struct {
@@ -39,7 +39,7 @@ func (p *Provider) SearchMovie(ctx context.Context, query movie.SearchQuery) ([]
 	results := make([]movie.SearchResult, 0, len(movies))
 	for _, m := range movies {
 		results = append(results, movie.SearchResult{
-			ExternalID: domain.NewExternalId(domain.ProviderTMDBMovie, strconv.Itoa(m.ID)),
+			ExternalID: domain.NewMediaIdentity(domain.ProviderTMDBMovie, strconv.Itoa(m.ID)),
 			Title:      m.Title,
 			Year:       yearFromDate(m.ReleaseDate),
 			Overview:   m.Overview,
@@ -76,7 +76,7 @@ func (p *Provider) GetMovie(ctx context.Context, id string) (*movie.ProviderMovi
 	releaseDate, _ := parseDate(d.ReleaseDate)
 
 	return &movie.ProviderMovie{
-		ExternalID:       domain.NewExternalId(domain.ProviderTMDBMovie, strconv.Itoa(d.ID)),
+		ExternalID:       domain.NewMediaIdentity(domain.ProviderTMDBMovie, strconv.Itoa(d.ID)),
 		ExternalIDs:      extIDs,
 		Title:            d.Title,
 		OriginalTitle:    d.OriginalTitle,
@@ -111,7 +111,7 @@ func (p *Provider) SearchTV(ctx context.Context, query tv.SearchQuery) ([]tv.Sea
 	results := make([]tv.SearchResult, 0, len(shows))
 	for _, s := range shows {
 		results = append(results, tv.SearchResult{
-			ExternalID: domain.NewExternalId(domain.ProviderTMDBTV, strconv.Itoa(s.ID)),
+			ExternalID: domain.NewMediaIdentity(domain.ProviderTMDBTV, strconv.Itoa(s.ID)),
 			Title:      s.Name,
 			Year:       yearFromDate(s.FirstAirDate),
 			Overview:   s.Overview,
@@ -159,7 +159,7 @@ func (p *Provider) GetShow(ctx context.Context, id string) (*tv.ProviderShow, er
 	extIDs := p.tvExternalIDs(ctx, tmdbID)
 
 	return &tv.ProviderShow{
-		ExternalID:       domain.NewExternalId(domain.ProviderTMDBTV, strconv.Itoa(d.ID)),
+		ExternalID:       domain.NewMediaIdentity(domain.ProviderTMDBTV, strconv.Itoa(d.ID)),
 		ExternalIDs:      extIDs,
 		Title:            d.Name,
 		OriginalTitle:    d.OriginalName,
@@ -197,7 +197,7 @@ func (p *Provider) GetEpisodes(ctx context.Context, id string) ([]tv.ProviderSea
 	}
 
 	var allSeasons []tv.ProviderSeason
-	showExtID := domain.NewExternalId(domain.ProviderTMDBTV, strconv.Itoa(show.ID))
+	showExtID := domain.NewMediaIdentity(domain.ProviderTMDBTV, strconv.Itoa(show.ID))
 
 	for _, s := range show.Seasons {
 		season, err := p.client.GetSeason(ctx, tmdbID, s.SeasonNumber)
@@ -210,7 +210,7 @@ func (p *Provider) GetEpisodes(ctx context.Context, id string) ([]tv.ProviderSea
 		for _, ep := range season.Episodes {
 			airDate, _ := parseDate(ep.AirDate)
 			seasonEpisodes = append(seasonEpisodes, tv.ProviderEpisode{
-				ExternalID:     domain.NewExternalId(domain.ProviderTMDBEpisode, strconv.Itoa(ep.ID)),
+				ExternalID:     domain.NewMediaIdentity(domain.ProviderTMDBEpisode, strconv.Itoa(ep.ID)),
 				ShowExternalID: showExtID,
 				SeasonNumber:   ep.SeasonNumber,
 				EpisodeNumber:  ep.EpisodeNumber,
@@ -229,7 +229,7 @@ func (p *Provider) GetEpisodes(ctx context.Context, id string) ([]tv.ProviderSea
 			SeasonNumber: season.SeasonNumber,
 			Rating:       nil,
 			VoteCount:    nil,
-			ExternalID:   new(domain.NewExternalId(domain.ProviderTMDBSeason, strconv.Itoa(season.ID))),
+			ExternalID:   new(domain.NewMediaIdentity(domain.ProviderTMDBSeason, strconv.Itoa(season.ID))),
 			Title:        new(season.Name),
 			Episodes:     seasonEpisodes,
 		})
@@ -275,8 +275,8 @@ func (p *Provider) GetEpisodeGroupDetail(ctx context.Context, groupID string) (*
 		for j, ep := range g.Episodes {
 			airDate, _ := parseDate(ep.AirDate)
 			episodes[j] = tv.ProviderEpisode{
-				ExternalID:     domain.NewExternalId(domain.ProviderTMDBTV, strconv.Itoa(ep.ID)),
-				ShowExternalID: domain.NewExternalId(domain.ProviderTMDBTV, strconv.Itoa(ep.ShowID)),
+				ExternalID:     domain.NewMediaIdentity(domain.ProviderTMDBTV, strconv.Itoa(ep.ID)),
+				ShowExternalID: domain.NewMediaIdentity(domain.ProviderTMDBTV, strconv.Itoa(ep.ShowID)),
 				SeasonNumber:   ep.SeasonNumber,
 				EpisodeNumber:  ep.EpisodeNumber,
 				Title:          ep.Name,
@@ -305,7 +305,24 @@ func (p *Provider) GetEpisodeGroupDetail(ctx context.Context, groupID string) (*
 	}, nil
 }
 
-func (p *Provider) tvExternalIDs(ctx context.Context, tmdbID int) []domain.ExternalId {
+func (p *Provider) Search(ctx context.Context, query domain.SearchQuery) ([]domain.SearchResult, error) {
+	hits, err := p.client.SearchMulti(ctx, query.Query, 1)
+	if err != nil {
+		return nil, fmt.Errorf("tmdb multi search: %w", err)
+	}
+
+	var results []domain.SearchResult
+	for _, h := range hits {
+		r, ok := mapMultiResult(h)
+		if !ok {
+			continue // skip unrelated
+		}
+		results = append(results, r)
+	}
+	return results, nil
+}
+
+func (p *Provider) tvExternalIDs(ctx context.Context, tmdbID int) []domain.SourceID {
 	ext, err := p.client.GetTVExternalIDs(ctx, tmdbID)
 	if err != nil {
 		return nil
@@ -313,7 +330,7 @@ func (p *Provider) tvExternalIDs(ctx context.Context, tmdbID int) []domain.Exter
 	return mapExternalIDs(ext)
 }
 
-func (p *Provider) movieExternalIDs(ctx context.Context, tmdbID int) []domain.ExternalId {
+func (p *Provider) movieExternalIDs(ctx context.Context, tmdbID int) []domain.SourceID {
 	ext, err := p.client.GetMovieExternalIDs(ctx, tmdbID)
 	if err != nil {
 		return nil
@@ -321,16 +338,16 @@ func (p *Provider) movieExternalIDs(ctx context.Context, tmdbID int) []domain.Ex
 	return mapExternalIDs(ext)
 }
 
-func mapExternalIDs(e *ExternalIDs) []domain.ExternalId {
-	var out []domain.ExternalId
+func mapExternalIDs(e *ExternalIDs) []domain.SourceID {
+	var out []domain.SourceID
 	if e.IMDbID != "" {
-		out = append(out, domain.NewExternalId(domain.ProviderIMDB, e.IMDbID))
+		out = append(out, domain.NewMediaIdentity(domain.ProviderIMDB, e.IMDbID))
 	}
 	if e.TVDBID != 0 {
-		out = append(out, domain.NewExternalId(domain.ProviderTVDB, strconv.Itoa(e.TVDBID)))
+		out = append(out, domain.NewMediaIdentity(domain.ProviderTVDB, strconv.Itoa(e.TVDBID)))
 	}
 	if e.WikidataID != "" {
-		out = append(out, domain.NewExternalId(domain.ProviderWikidata, e.WikidataID))
+		out = append(out, domain.NewMediaIdentity(domain.ProviderWikidata, e.WikidataID))
 	}
 	return out
 }
@@ -348,4 +365,31 @@ func parseDate(s string) (time.Time, error) {
 		return time.Time{}, fmt.Errorf("empty date")
 	}
 	return time.Parse("2006-01-02", s)
+}
+
+func mapMultiResult(h MultiSearchResult) (domain.SearchResult, bool) {
+	switch h.MediaType {
+	case "movie":
+		return domain.SearchResult{
+			ExternalID: domain.NewMediaIdentity(domain.ProviderTMDBMovie, strconv.Itoa(h.ID)),
+			MediaType:  movie.MediaType,
+			Title:      h.Title,
+			Year:       yearFromDate(h.ReleaseDate),
+			Overview:   h.Overview,
+			PosterPath: h.PosterPath,
+			Popularity: h.Popularity,
+		}, true
+	case "tv":
+		return domain.SearchResult{
+			ExternalID: domain.NewMediaIdentity(domain.ProviderTMDBTV, strconv.Itoa(h.ID)),
+			MediaType:  tv.MediaType,
+			Title:      h.Name,
+			Year:       yearFromDate(h.FirstAirDate),
+			Overview:   h.Overview,
+			PosterPath: h.PosterPath,
+			Popularity: h.Popularity,
+		}, true
+	default:
+		return domain.SearchResult{}, false
+	}
 }

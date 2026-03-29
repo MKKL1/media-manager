@@ -128,3 +128,24 @@ type SearchMovieParams struct {
 	Page  int
 	Year  int
 }
+
+type MultiSearchResult struct {
+	ID               int      `json:"id"`
+	MediaType        string   `json:"media_type"`
+	Title            string   `json:"title"`
+	Name             string   `json:"name"`
+	OriginalTitle    string   `json:"original_title"`
+	OriginalName     string   `json:"original_name"`
+	OriginalLanguage string   `json:"original_language"`
+	Overview         string   `json:"overview"`
+	PosterPath       string   `json:"poster_path"`
+	BackdropPath     string   `json:"backdrop_path"`
+	ReleaseDate      string   `json:"release_date"`
+	FirstAirDate     string   `json:"first_air_date"`
+	Popularity       float64  `json:"popularity"`
+	VoteAverage      float64  `json:"vote_average"`
+	VoteCount        int      `json:"vote_count"`
+	GenreIDs         []int    `json:"genre_ids"`
+	OriginCountry    []string `json:"origin_country"`
+	Adult            bool     `json:"adult"`
+}

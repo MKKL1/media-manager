@@ -8,7 +8,7 @@ type MappingData struct {
 }
 
 type MappingEntry struct {
-	IDs     []domain.ExternalId
+	IDs     []domain.MediaIdentity
 	Seasons []SeasonMapping
 }
 

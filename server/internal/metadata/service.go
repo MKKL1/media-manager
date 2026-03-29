@@ -7,11 +7,11 @@ import (
 )
 
 type Service struct {
-	repo     MediaRepository
+	repo     domain.MediaRepository
 	handlers Handlers
 }
 
-func NewService(repo MediaRepository, handlers Handlers) *Service {
+func NewService(repo domain.MediaRepository, handlers Handlers) *Service {
 	return &Service{repo: repo, handlers: handlers}
 }
 

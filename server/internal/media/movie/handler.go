@@ -29,10 +29,10 @@ func NewMovieHandler(fetchers map[string]Fetcher) *Handler {
 }
 
 // FetchMedia Decides what provider to query and maps to generic media type
-func (h *Handler) FetchMedia(ctx context.Context, id domain.ExternalId) (*domain.MediaWithItems, error) {
-	fetcher, ok := h.fetchers[id.Provider]
+func (h *Handler) FetchMedia(ctx context.Context, id domain.SourceID) (*domain.MediaWithItems, error) {
+	fetcher, ok := h.fetchers[id.Source]
 	if !ok {
-		return nil, fmt.Errorf("provider %s not found for movie", id.Provider)
+		return nil, fmt.Errorf("provider %s not found for movie", id.Source)
 	}
 
 	movie, err := fetcher.GetMovie(ctx, id.Id)
@@ -53,7 +53,7 @@ func (h *Handler) FetchMedia(ctx context.Context, id domain.ExternalId) (*domain
 
 	mediaID := domain.GenerateMediaID()
 
-	externalIds := []domain.ExternalId{id}
+	externalIds := []domain.SourceID{id}
 	externalIds = append(externalIds, movie.ExternalIDs...)
 
 	media := domain.Media{
