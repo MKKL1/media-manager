@@ -61,7 +61,7 @@ func New(ctx context.Context, cfg *Config) (*App, ShutdownFunc, error) {
 		return nil, nil, fmt.Errorf("migrate db: %w", err)
 	}
 
-	mediaRepo := database.NewBunMediaRepository(db)
+	mediaRepo := database.NewMediaRepository(db)
 	mappingsRepo := database.NewMappingRepository(db)
 
 	mappingSvc := metadata.NewMappingService(mappingsRepo, []metadata.MappingSource{
@@ -73,8 +73,10 @@ func New(ctx context.Context, cfg *Config) (*App, ShutdownFunc, error) {
 
 	provider := tmdb.NewProvider(cfg.TMDB.APIKey)
 	handlers := metadata.Handlers{
-		movie.MediaType: movie.NewMovieHandler(map[string]movie.Fetcher{"tmdb": provider}),
-		tv.MediaType:    tv.NewTVHandler(map[string]tv.Fetcher{"tmdb": provider}, map[string]domain.ImageResolver{"tmdb": provider}),
+		movie.MediaType: movie.NewMovieHandler(map[domain.ProviderName]movie.Fetcher{domain.ProviderTMDB: provider}),
+		tv.MediaType: tv.NewTVHandler(
+			map[domain.ProviderName]tv.Fetcher{domain.ProviderTMDB: provider},
+			map[domain.ProviderName]domain.ImageResolver{"tmdb": provider}),
 	}
 
 	wfBackend := wfinfra.NewBackend(

@@ -6,7 +6,7 @@ import (
 )
 
 type SeasonMapping struct {
-	sourceId     domain.SourceID //anidb id
+	sourceId     domain.MediaIdentity //anidb id
 	seasonNumber int
 	provider     string
 }
@@ -14,6 +14,6 @@ type SeasonMapping struct {
 type SeasonMappingRepository interface {
 	FindSeasonMapping(
 		ctx context.Context,
-		id domain.SourceID, //tmdb id
+		id domain.MediaIdentity, //tmdb id
 	) ([]SeasonMapping, error)
 }

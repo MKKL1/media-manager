@@ -28,14 +28,16 @@ var qualityMap = map[domain.ImageQuality]map[domain.ImageRole]string{
 	},
 }
 
-func (p *Provider) Resolve(img domain.Image, quality domain.ImageQuality) domain.ImageURL {
+// TODO this should probably have context as different providers may need to call API for that (for now YAGNI)
+
+func (p *Provider) Resolve(path string, quality domain.ImageQuality, role domain.ImageRole) domain.ImageURL {
 	sizes, ok := qualityMap[quality]
 	if !ok {
 		sizes = qualityMap[domain.ImageQualityMedium]
 	}
-	size, ok := sizes[img.Role]
+	size, ok := sizes[role]
 	if !ok {
 		size = "original"
 	}
-	return domain.ImageURL(imageBaseURL + size + img.ExternalPath)
+	return domain.ImageURL(imageBaseURL + size + path)
 }

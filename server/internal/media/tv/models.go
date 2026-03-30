@@ -60,7 +60,7 @@ type SearchQuery struct {
 }
 
 type SearchResult struct {
-	ExternalID domain.SourceID
+	ExternalID domain.MediaIdentity
 	Title      string
 	Year       int
 	Overview   string
@@ -69,8 +69,8 @@ type SearchResult struct {
 }
 
 type ProviderShow struct {
-	ExternalID       domain.SourceID
-	ExternalIDs      []domain.SourceID
+	ExternalID       domain.MediaIdentity
+	ExternalIDs      []domain.MediaIdentity
 	Title            string
 	OriginalTitle    string
 	OriginalLanguage string
@@ -99,14 +99,14 @@ type ProviderSeason struct {
 	SeasonNumber int
 	Rating       *float32
 	VoteCount    *int
-	ExternalID   *domain.SourceID
+	ExternalID   *domain.MediaIdentity
 	Title        *string
 	Episodes     []ProviderEpisode
 }
 
 type ProviderEpisode struct {
-	ExternalID     domain.SourceID
-	ShowExternalID domain.SourceID
+	ExternalID     domain.MediaIdentity
+	ShowExternalID domain.MediaIdentity
 	SeasonNumber   int
 	EpisodeNumber  int
 	Title          string

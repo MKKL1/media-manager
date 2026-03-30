@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"server/internal/domain"
 
-	json "github.com/bytedance/sonic"
+	"github.com/bytedance/sonic"
 	"github.com/go-playground/validator/v10"
 	"github.com/gorilla/schema"
 )
@@ -20,7 +20,7 @@ func init() {
 }
 
 func decodeJSON(r *http.Request, dst any) error {
-	if err := json.NewDecoder(r.Body).Decode(dst); err != nil {
+	if err := sonic.ConfigDefault.NewDecoder(r.Body).Decode(dst); err != nil {
 		return domain.ErrInvalidInput
 	}
 	return validate.Struct(dst)

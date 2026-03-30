@@ -16,11 +16,11 @@ const summaryMaxLength = 150
 var _ metadata.MediaHandler = (*Handler)(nil)
 
 type Handler struct {
-	fetchers       map[string]Fetcher
-	imageResolvers map[string]domain.ImageResolver
+	fetchers       map[domain.ProviderName]Fetcher
+	imageResolvers map[domain.ProviderName]domain.ImageResolver
 }
 
-func NewTVHandler(fetchers map[string]Fetcher, imageResolvers map[string]domain.ImageResolver) *Handler {
+func NewTVHandler(fetchers map[domain.ProviderName]Fetcher, imageResolvers map[domain.ProviderName]domain.ImageResolver) *Handler {
 	return &Handler{fetchers: fetchers, imageResolvers: imageResolvers}
 }
 
@@ -37,9 +37,13 @@ func (h *Handler) ToSummary(media domain.Media) (domain.MediaSummary, error) {
 		}
 	}
 
-	ires, ok := h.imageResolvers[media.PrimaryExternalId.Source]
+	ires, ok := h.imageResolvers[media.PrimaryIdentity.Kind.ProviderName]
 	if !ok {
-		return domain.MediaSummary{}, fmt.Errorf("h.imageResolvers %s not found for tv: %w", media.PrimaryExternalId.Source, domain.ErrNoProvider)
+		return domain.MediaSummary{}, fmt.Errorf(
+			"h.imageResolvers %s not found for tv: %w",
+			media.PrimaryIdentity.Kind.ProviderName,
+			domain.ErrNoProvider,
+		)
 	}
 
 	var img domain.Image
@@ -51,9 +55,9 @@ func (h *Handler) ToSummary(media domain.Media) (domain.MediaSummary, error) {
 			break
 		}
 	}
-	var posterPath = ""
+	var posterPath domain.ImageURL = ""
 	if found {
-		posterPath = ires.Resolve(img, domain.ImageQualityThumb)
+		posterPath = ires.Resolve(img.ExternalPath, domain.ImageQualityThumb, img.Role)
 	}
 	return domain.MediaSummary{
 		ID:              media.ID,
@@ -65,20 +69,20 @@ func (h *Handler) ToSummary(media domain.Media) (domain.MediaSummary, error) {
 		Status:          media.Status,
 		Summary:         shorten(meta.Overview, summaryMaxLength) + "...",
 		ReleaseDate:     meta.FirstAirDate,
-		PrimaryIdentity: media.PrimaryExternalId,
+		PrimaryIdentity: media.PrimaryIdentity,
 		PosterPath:      posterPath,
 		Metadata:        nil,
 	}, nil
 }
 
-func (h *Handler) FetchMedia(ctx context.Context, id domain.SourceID) (*domain.MediaWithItems, error) {
-	fetcher, ok := h.fetchers[id.Source]
+func (h *Handler) FetchMedia(ctx context.Context, id domain.MediaIdentity) (*domain.MediaWithItems, error) {
+	fetcher, ok := h.fetchers[id.Kind.ProviderName]
 	if !ok {
-		return nil, fmt.Errorf("provider %s not found for tv: %w", id.Source, domain.ErrNoProvider)
+		return nil, fmt.Errorf("provider %s not found for tv: %w", id.Kind.ProviderName, domain.ErrNoProvider)
 	}
 
 	//This can be easily optimized to be one call
-	show, err := fetcher.GetShow(ctx, id.Id)
+	show, err := fetcher.GetShow(ctx, id.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -154,20 +158,20 @@ func (h *Handler) FetchMedia(ctx context.Context, id domain.SourceID) (*domain.M
 		return nil, fmt.Errorf("json.Marshal tvMeta: %w", err)
 	}
 
-	externalIds := []domain.SourceID{id}
+	externalIds := []domain.MediaIdentity{id}
 	externalIds = append(externalIds, show.ExternalIDs...)
 
 	images := []domain.Image{
 		{
 			ID:           uuid.New(),
 			Role:         domain.ImageRolePoster,
-			Provider:     id.Source,
+			Source:       id.Kind.ProviderName,
 			ExternalPath: show.Poster,
 		},
 		{
 			ID:           uuid.New(),
 			Role:         domain.ImageRoleBackdrop,
-			Provider:     id.Source,
+			Source:       id.Kind.ProviderName,
 			ExternalPath: show.Backdrop,
 		},
 	}
@@ -179,8 +183,8 @@ func (h *Handler) FetchMedia(ctx context.Context, id domain.SourceID) (*domain.M
 		Title:             show.Title,
 		Status:            show.Status,
 		Monitored:         false,
-		PrimaryExternalId: id,
-		ExternalIds:       externalIds,
+		PrimaryIdentity:   id,
+		RelatedIdentities: externalIds,
 		Metadata:          tvMetaJSON,
 		CreatedAt:         now,
 		LastSync:          now,
@@ -194,7 +198,7 @@ func (h *Handler) FetchMedia(ctx context.Context, id domain.SourceID) (*domain.M
 	}, nil
 }
 
-func fetchEpisodes(ctx context.Context, id domain.SourceID, fetcher Fetcher) ([]ProviderSeason, error) {
+func fetchEpisodes(ctx context.Context, id domain.MediaIdentity, fetcher Fetcher) ([]ProviderSeason, error) {
 	gf, ok := fetcher.(EpisodeGroupFetcher)
 	if ok {
 		episodes, err := fetchEpisodesFromGroup(ctx, id, gf)
@@ -207,11 +211,11 @@ func fetchEpisodes(ctx context.Context, id domain.SourceID, fetcher Fetcher) ([]
 		}
 	}
 
-	return fetcher.GetEpisodes(ctx, id.Id)
+	return fetcher.GetEpisodes(ctx, id.ID)
 }
 
-func fetchEpisodesFromGroup(ctx context.Context, id domain.SourceID, gf EpisodeGroupFetcher) ([]ProviderSeason, error) {
-	groups, err := gf.GetEpisodeGroups(ctx, id.Id)
+func fetchEpisodesFromGroup(ctx context.Context, id domain.MediaIdentity, gf EpisodeGroupFetcher) ([]ProviderSeason, error) {
+	groups, err := gf.GetEpisodeGroups(ctx, id.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -238,7 +242,7 @@ func flattenEpisodeGroupDetail(detail *EpisodeGroupDetail) []ProviderSeason {
 	for _, g := range detail.Groups {
 		out = append(out, ProviderSeason{
 			SeasonNumber: g.Order,
-			ExternalID:   new(domain.NewMediaIdentity(domain.ProviderTMDBSeason, g.ID)),
+			ExternalID:   new(domain.NewMediaIdentity(domain.KindTMDBSeason, g.ID)),
 			Title:        new(g.Name),
 			Episodes:     g.Episodes,
 		})

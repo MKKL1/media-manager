@@ -22,7 +22,7 @@ const (
 type Image struct {
 	ID           uuid.UUID
 	Role         ImageRole
-	Source       Source
+	Source       ProviderName
 	ExternalPath string
 }
 
@@ -30,5 +30,5 @@ type ImageURL string
 
 // ImageResolver turns a stored Image reference into a usable URL.
 type ImageResolver interface {
-	Resolve(source Source, path string, quality ImageQuality) ImageURL
+	Resolve(path string, quality ImageQuality, role ImageRole) ImageURL
 }

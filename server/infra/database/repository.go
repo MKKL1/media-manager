@@ -46,7 +46,7 @@ func (r *MediaRepository) GetByIdentity(ctx context.Context, id domain.MediaIden
 		Where(
 			"(source_kind = ? AND source_id = ?) OR "+
 				"EXISTS (SELECT 1 FROM external_ids WHERE media_id = media.id AND kind = ? AND value = ?)",
-			string(id.Kind), id.ID, string(id.Kind), id.ID,
+			id.Kind.String(), id.ID, id.Kind.String(), id.ID,
 		).
 		Relation("ExternalIDs").
 		Relation("Images").
@@ -115,7 +115,7 @@ func (r *MediaRepository) List(ctx context.Context, q domain.MediaQuery) ([]doma
 
 	selectQuery := r.db.NewSelect().
 		Model(&dbMedia).
-		Relation("ExternalIds"). //not sure if it's needed here, but will leave it as is
+		Relation("ExternalIDs"). //not sure if it's needed here, but will leave it as is
 		Relation("Images").
 		Where("deleted_at IS NULL")
 

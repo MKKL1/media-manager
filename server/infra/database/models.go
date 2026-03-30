@@ -62,7 +62,7 @@ func (m *Media) toCore() *domain.Media {
 	identities := make([]domain.MediaIdentity, len(m.ExternalIDs))
 	for i, ext := range m.ExternalIDs {
 		identities[i] = domain.MediaIdentity{
-			Kind: domain.SourceKind(ext.Kind),
+			Kind: domain.SourceKindFromString(ext.Kind),
 			ID:   ext.Value,
 		}
 	}
@@ -72,7 +72,7 @@ func (m *Media) toCore() *domain.Media {
 		images[i] = domain.Image{
 			ID:           img.ID,
 			Role:         domain.ImageRole(img.Role),
-			Source:       domain.Source(img.Source),
+			Source:       domain.ProviderName(img.Source),
 			ExternalPath: img.Path,
 		}
 	}
@@ -83,7 +83,7 @@ func (m *Media) toCore() *domain.Media {
 		Title:             m.Title,
 		Status:            m.Status,
 		Monitored:         m.Monitored,
-		PrimaryIdentity:   domain.NewMediaIdentity(domain.SourceKind(m.SourceKind), m.SourceID),
+		PrimaryIdentity:   domain.NewMediaIdentity(domain.SourceKindFromString(m.SourceKind), m.SourceID),
 		RelatedIdentities: identities,
 		Images:            images,
 		Metadata:          m.Metadata,
@@ -98,7 +98,7 @@ func fromCore(c *domain.Media) *Media {
 	for i, id := range c.RelatedIdentities {
 		externalIDs[i] = MediaIdentity{
 			MediaID: uuid.UUID(c.ID),
-			Kind:    string(id.Kind),
+			Kind:    id.Kind.String(),
 			Value:   id.ID,
 		}
 	}
@@ -120,7 +120,7 @@ func fromCore(c *domain.Media) *Media {
 		Title:       c.Title,
 		Status:      c.Status,
 		Monitored:   c.Monitored,
-		SourceKind:  string(c.PrimaryIdentity.Kind),
+		SourceKind:  c.PrimaryIdentity.Kind.String(),
 		SourceID:    c.PrimaryIdentity.ID,
 		ExternalIDs: externalIDs,
 		Images:      images,

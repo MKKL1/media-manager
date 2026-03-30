@@ -121,7 +121,7 @@ func (s *PullService) lookupExisting(
 	)
 	defer end(&err)
 
-	media, err := s.repo.GetByExternalID(ctx, extID)
+	media, err := s.repo.GetByIdentity(ctx, extID)
 	if err != nil {
 		if errors.Is(err, domain.ErrNotFound) {
 			return nil, nil
@@ -168,7 +168,7 @@ func (s *PullService) storeMedia(ctx context.Context, media domain.MediaWithItem
 	)
 	defer end(&err)
 
-	if err := s.repo.StoreMediaWithItems(ctx, media); err != nil {
+	if err := s.repo.StoreWithItems(ctx, &media.Media, media.Items); err != nil {
 		return struct{}{}, fmt.Errorf("store media %s: %w", media.Media.ID, err)
 	}
 	return struct{}{}, nil

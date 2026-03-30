@@ -100,12 +100,12 @@ func flattenEntries(entries []MappingEntry) ([]IDRow, []SeasonRow) {
 				continue
 			}
 			seen[key] = struct{}{}
-			ids = append(ids, IDRow{GroupID: groupID, Provider: id.Source, ProviderID: id.Id})
+			ids = append(ids, IDRow{GroupID: groupID, Provider: id.Kind.String(), ProviderID: id.ID})
 		}
 		src := e.IDs[0]
 		for _, sm := range e.Seasons {
 			seasons = append(seasons, SeasonRow{
-				GroupID: groupID, Provider: src.Source, ProviderID: src.Id,
+				GroupID: groupID, Provider: src.Kind.String(), ProviderID: src.ID,
 				TargetProvider: sm.Provider, SeasonNumber: sm.SeasonNumber,
 			})
 		}

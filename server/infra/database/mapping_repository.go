@@ -175,7 +175,7 @@ func (r *MappingRepository) SetSourceVersion(ctx context.Context, source string,
 }
 
 // FindMappings returns all cross-referenced IDs for a given provider:id
-func (r *MappingRepository) FindMappings(ctx context.Context, id domain.SourceID) ([]domain.SourceID, error) {
+func (r *MappingRepository) FindMappings(ctx context.Context, id domain.MediaIdentity) ([]domain.MediaIdentity, error) {
 	var mappings []ProviderMapping
 	err := r.db.NewSelect().
 		Model(&mappings).
@@ -183,24 +183,29 @@ func (r *MappingRepository) FindMappings(ctx context.Context, id domain.SourceID
 			r.db.NewSelect().
 				Model((*ProviderMapping)(nil)).
 				Column("source_id", "group_id").
-				Where("provider = ? AND provider_id = ?", id.Source, id.Id),
+				Where("provider = ? AND provider_id = ?", id.Kind, id.ID),
 		).
-		Where("NOT (provider = ? AND provider_id = ?)", id.Source, id.Id).
+		Where("NOT (provider = ? AND provider_id = ?)", id.Kind, id.ID).
 		Scan(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	result := make([]domain.SourceID, len(mappings))
+	result := make([]domain.MediaIdentity, len(mappings))
 	for i, m := range mappings {
-		result[i] = domain.NewMediaIdentity(m.Provider, m.ProviderID)
+		result[i] = domain.NewMediaIdentity(domain.SourceKindFromString(m.Provider), m.ProviderID)
 	}
 	return result, nil
 }
 
 // FindSeasonMapping returns source entity IDs that map to a specific season
 // e.g. "tmdb:62913 season 2" → returns [anidb:3]
-func (r *MappingRepository) FindSeasonMapping(ctx context.Context, id domain.SourceID, targetProvider string, seasonNumber int) ([]domain.SourceID, error) {
+func (r *MappingRepository) FindSeasonMapping(
+	ctx context.Context,
+	id domain.MediaIdentity,
+	targetProvider string,
+	seasonNumber int,
+) ([]domain.MediaIdentity, error) {
 	var mappings []SeasonMapping
 	err := r.db.NewSelect().
 		Model(&mappings).
@@ -208,7 +213,7 @@ func (r *MappingRepository) FindSeasonMapping(ctx context.Context, id domain.Sou
 			r.db.NewSelect().
 				Model((*ProviderMapping)(nil)).
 				Column("source_id", "group_id").
-				Where("provider = ? AND provider_id = ?", id.Source, id.Id),
+				Where("provider = ? AND provider_id = ?", id.Kind, id.ID),
 		).
 		Where("target_provider = ?", targetProvider).
 		Where("season_number = ?", seasonNumber).
@@ -217,9 +222,10 @@ func (r *MappingRepository) FindSeasonMapping(ctx context.Context, id domain.Sou
 		return nil, err
 	}
 
-	result := make([]domain.SourceID, len(mappings))
+	result := make([]domain.MediaIdentity, len(mappings))
 	for i, m := range mappings {
-		result[i] = domain.NewMediaIdentity(m.Provider, m.ProviderID)
+		//TODO this is bad, domain.SourceKindFromString(m.Provider) may not return proper ProviderKind as mapping does it differently
+		result[i] = domain.NewMediaIdentity(domain.SourceKindFromString(m.Provider), m.ProviderID)
 	}
 	return result, nil
 }

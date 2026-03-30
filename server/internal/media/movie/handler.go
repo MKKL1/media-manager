@@ -12,7 +12,7 @@ import (
 var _ metadata.MediaHandler = (*Handler)(nil)
 
 type Handler struct {
-	fetchers map[string]Fetcher
+	fetchers map[domain.ProviderName]Fetcher
 }
 
 func (h *Handler) Type() domain.MediaType {
@@ -24,18 +24,20 @@ func (h *Handler) ToSummary(media domain.Media) (domain.MediaSummary, error) {
 	panic("implement me")
 }
 
-func NewMovieHandler(fetchers map[string]Fetcher) *Handler {
+func NewMovieHandler(fetchers map[domain.ProviderName]Fetcher) *Handler {
 	return &Handler{fetchers: fetchers}
 }
 
 // FetchMedia Decides what provider to query and maps to generic media type
-func (h *Handler) FetchMedia(ctx context.Context, id domain.SourceID) (*domain.MediaWithItems, error) {
-	fetcher, ok := h.fetchers[id.Source]
+func (h *Handler) FetchMedia(ctx context.Context, id domain.MediaIdentity) (*domain.MediaWithItems, error) {
+	provName := id.Kind.ProviderName
+
+	fetcher, ok := h.fetchers[provName]
 	if !ok {
-		return nil, fmt.Errorf("provider %s not found for movie", id.Source)
+		return nil, fmt.Errorf("provider %s not found for movie", provName)
 	}
 
-	movie, err := fetcher.GetMovie(ctx, id.Id)
+	movie, err := fetcher.GetMovie(ctx, id.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -53,7 +55,7 @@ func (h *Handler) FetchMedia(ctx context.Context, id domain.SourceID) (*domain.M
 
 	mediaID := domain.GenerateMediaID()
 
-	externalIds := []domain.SourceID{id}
+	externalIds := []domain.MediaIdentity{id}
 	externalIds = append(externalIds, movie.ExternalIDs...)
 
 	media := domain.Media{
@@ -61,8 +63,8 @@ func (h *Handler) FetchMedia(ctx context.Context, id domain.SourceID) (*domain.M
 		Type:              MediaType,
 		Title:             movie.Title,
 		Status:            movie.Status,
-		PrimaryExternalId: id,
-		ExternalIds:       externalIds,
+		PrimaryIdentity:   id,
+		RelatedIdentities: externalIds,
 		Metadata:          nil, //TODO
 	}
 

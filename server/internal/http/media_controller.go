@@ -47,7 +47,17 @@ func (c *MediaController) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, map[string]any{"data": list})
+	var items = make([]MediaSummaryResponse, 0, len(list.Items))
+	for _, item := range list.Items {
+		items = append(items, toMediaSummaryResponse(item))
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{"data": MediaPageResponse{
+		Items:  items,
+		Total:  list.Total,
+		Offset: list.Offset,
+		Limit:  list.Limit,
+	}})
 }
 
 func (c *MediaController) PullMedia(w http.ResponseWriter, r *http.Request) {
@@ -57,17 +67,17 @@ func (c *MediaController) PullMedia(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	//TODO domain.SourceKind(req.Provider) should be validated
-	extID := domain.NewMediaIdentity(domain.SourceKind(req.Provider), req.ID)
+	//TODO domain.ProviderKind(req.Provider) should be validated
+	extID := domain.NewMediaIdentity(domain.SourceKindFromString(req.Provider), req.ID)
 	instanceID, err := c.pullService.RequestPull(r.Context(), extID, req.MediaType)
 	if err != nil {
 		RespondError(w, r, err)
 		return
 	}
 
-	writeJSON(w, http.StatusAccepted, map[string]any{
-		"status":      "queued",
-		"workflow_id": instanceID,
+	writeJSON(w, http.StatusAccepted, PullMediaResponse{
+		Status:     "queued",
+		WorkflowID: instanceID,
 	})
 }
 
@@ -88,5 +98,10 @@ func (c *MediaController) Search(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, map[string]any{"data": results})
+	var data = make([]SearchResultResponse, 0, len(results))
+	for _, item := range results {
+		data = append(data, toSearchResultResponse(item))
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{"data": data})
 }
