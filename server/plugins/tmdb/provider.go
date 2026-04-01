@@ -14,7 +14,6 @@ import (
 var (
 	_ movie.Fetcher           = (*Provider)(nil)
 	_ tv.Fetcher              = (*Provider)(nil)
-	_ tv.EpisodeGroupFetcher  = (*Provider)(nil)
 	_ domain.ImageResolver    = (*Provider)(nil)
 	_ metadata.SearchProvider = (*Provider)(nil)
 )
@@ -27,102 +26,7 @@ func NewProvider(apiKey string) *Provider {
 	return &Provider{client: NewClient(apiKey)}
 }
 
-func (p *Provider) SearchMovie(ctx context.Context, query movie.SearchQuery) ([]movie.SearchResult, error) {
-	movies, err := p.client.SearchMovies(ctx, SearchMovieParams{
-		Query: query.Title,
-		Year:  query.Year,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("tmdb search movies: %w", err)
-	}
-
-	results := make([]movie.SearchResult, 0, len(movies))
-	for _, m := range movies {
-		results = append(results, movie.SearchResult{
-			ExternalID: domain.NewMediaIdentity(domain.KindTMDBMovie, strconv.Itoa(m.ID)),
-			Title:      m.Title,
-			Year:       yearFromDate(m.ReleaseDate),
-			Overview:   m.Overview,
-			Poster:     m.PosterPath,
-			Popularity: m.Popularity,
-		})
-	}
-	return results, nil
-}
-
-func (p *Provider) GetMovie(ctx context.Context, id string) (*movie.ProviderMovie, error) {
-	tmdbID, err := strconv.Atoi(id)
-	if err != nil {
-		return nil, fmt.Errorf("invalid tmdb movie id %q: %w", id, err)
-	}
-
-	d, err := p.client.GetMovie(ctx, tmdbID)
-	if err != nil {
-		return nil, fmt.Errorf("tmdb get movie %d: %w", tmdbID, err)
-	}
-
-	genres := make([]string, len(d.Genres))
-	for i, g := range d.Genres {
-		genres[i] = g.Name
-	}
-
-	countries := make([]string, len(d.ProductionCompanies))
-	for i, c := range d.ProductionCompanies {
-		countries[i] = c.OriginCountry
-	}
-
-	extIDs := p.movieExternalIDs(ctx, tmdbID)
-
-	releaseDate, _ := parseDate(d.ReleaseDate)
-
-	return &movie.ProviderMovie{
-		ExternalID:       domain.NewMediaIdentity(domain.KindTMDBMovie, strconv.Itoa(d.ID)),
-		ExternalIDs:      extIDs,
-		Title:            d.Title,
-		OriginalTitle:    d.OriginalTitle,
-		OriginalLanguage: d.OriginalLanguage,
-		Overview:         d.Overview,
-		Tagline:          d.Tagline,
-		Status:           d.Status,
-		ReleaseDate:      releaseDate,
-		Year:             yearFromDate(d.ReleaseDate),
-		Runtime:          d.Runtime,
-		Genres:           genres,
-		OriginCountry:    countries,
-		Poster:           d.PosterPath,
-		Backdrop:         d.BackdropPath,
-		Rating:           float32(d.VoteAverage),
-		VoteCount:        d.VoteCount,
-		Popularity:       d.Popularity,
-		Budget:           d.Budget,
-		Revenue:          d.Revenue,
-	}, nil
-}
-
-func (p *Provider) SearchTV(ctx context.Context, query tv.SearchQuery) ([]tv.SearchResult, error) {
-	shows, err := p.client.SearchTV(ctx, SearchTVParams{
-		Query: query.Title,
-		Year:  query.Year,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("tmdb search tv: %w", err)
-	}
-
-	results := make([]tv.SearchResult, 0, len(shows))
-	for _, s := range shows {
-		results = append(results, tv.SearchResult{
-			ExternalID: domain.NewMediaIdentity(domain.KindTMDBTV, strconv.Itoa(s.ID)),
-			Title:      s.Name,
-			Year:       yearFromDate(s.FirstAirDate),
-			Overview:   s.Overview,
-			Poster:     s.PosterPath,
-			Popularity: s.Popularity,
-		})
-	}
-	return results, nil
-}
-
-func (p *Provider) GetShow(ctx context.Context, id string) (*tv.ProviderShow, error) {
+func (p *Provider) FetchShow(ctx context.Context, id string) (*tv.ShowResult, error) {
 	tmdbID, err := strconv.Atoi(id)
 	if err != nil {
 		return nil, fmt.Errorf("invalid tmdb tv id %q: %w", id, err)
@@ -133,175 +37,62 @@ func (p *Provider) GetShow(ctx context.Context, id string) (*tv.ProviderShow, er
 		return nil, fmt.Errorf("tmdb get tv %d: %w", tmdbID, err)
 	}
 
-	genres := make([]string, len(d.Genres))
-	for i, g := range d.Genres {
-		genres[i] = g.Name
+	extIDs := extractAppendedExternalIDs(d.ExternalIDs)
+
+	seasons, err := p.resolveSeasons(ctx, tmdbID, d)
+	if err != nil {
+		return nil, fmt.Errorf("tmdb resolve seasons %d: %w", tmdbID, err)
 	}
 
-	networks := make([]string, len(d.Networks))
-	for i, n := range d.Networks {
-		networks[i] = n.Name
-	}
-
-	creators := make([]string, len(d.CreatedBy))
-	for i, c := range d.CreatedBy {
-		creators[i] = c.Name
-	}
-
-	firstAirDate, _ := parseDate(d.FirstAirDate)
-	lastAirDate, _ := parseDate(d.LastAirDate)
-
-	var runtime int
+	var runtime *int
 	if len(d.EpisodeRunTime) > 0 {
-		runtime = d.EpisodeRunTime[0]
+		runtime = new(d.EpisodeRunTime[0])
 	}
 
-	extIDs := p.tvExternalIDs(ctx, tmdbID)
-
-	return &tv.ProviderShow{
-		ExternalID:       domain.NewMediaIdentity(domain.KindTMDBTV, strconv.Itoa(d.ID)),
-		ExternalIDs:      extIDs,
+	return &tv.ShowResult{
 		Title:            d.Name,
-		OriginalTitle:    d.OriginalName,
-		OriginalLanguage: d.OriginalLanguage,
-		Overview:         d.Overview,
-		Tagline:          d.Tagline,
-		Status:           d.Status,
-		FirstAirDate:     firstAirDate,
-		LastAirDate:      lastAirDate,
-		Year:             yearFromDate(d.FirstAirDate),
+		ExternalIDs:      extIDs,
+		Seasons:          seasons,
+		OriginalTitle:    new(d.OriginalName),
+		OriginalLanguage: new(d.OriginalLanguage),
+		Overview:         new(d.Overview),
+		Tagline:          new(d.Tagline),
+		Status:           new(d.Status),
+		FirstAirDate:     parseOptionalDate(d.FirstAirDate),
+		LastAirDate:      parseOptionalDate(d.LastAirDate),
 		Runtime:          runtime,
-		SeasonCount:      d.NumberOfSeasons,
-		EpisodeCount:     d.NumberOfEpisodes,
-		Genres:           genres,
-		OriginCountry:    d.OriginCountry,
-		Networks:         networks,
-		CreatedBy:        creators,
-		Poster:           d.PosterPath,
-		Backdrop:         d.BackdropPath,
-		Rating:           float32(d.VoteAverage),
-		VoteCount:        d.VoteCount,
-		Popularity:       d.Popularity,
+		SeasonCount:      new(d.NumberOfSeasons),
+		EpisodeCount:     new(d.NumberOfEpisodes),
+		Genres:           mapGenreNames(d.Genres),
+		Images:           collectImages(d.PosterPath, d.BackdropPath),
 	}, nil
 }
 
-func (p *Provider) GetEpisodes(ctx context.Context, id string) ([]tv.ProviderSeason, error) {
+func (p *Provider) FetchMovie(ctx context.Context, id string) (*movie.MovieResult, error) {
 	tmdbID, err := strconv.Atoi(id)
 	if err != nil {
-		return nil, fmt.Errorf("invalid tmdb tv id %q: %w", id, err)
+		return nil, fmt.Errorf("invalid tmdb movie id %q: %w", id, err)
 	}
 
-	show, err := p.client.GetTV(ctx, tmdbID)
+	d, err := p.client.GetMovie(ctx, tmdbID)
 	if err != nil {
-		return nil, fmt.Errorf("tmdb get tv %d (for episodes): %w", tmdbID, err)
+		return nil, fmt.Errorf("tmdb get movie %d: %w", tmdbID, err)
 	}
 
-	var allSeasons []tv.ProviderSeason
-	showExtID := domain.NewMediaIdentity(domain.KindTMDBTV, strconv.Itoa(show.ID))
+	extIDs := extractAppendedExternalIDs(d.ExternalIDs)
 
-	for _, s := range show.Seasons {
-		season, err := p.client.GetSeason(ctx, tmdbID, s.SeasonNumber)
-		if err != nil {
-			return nil, fmt.Errorf("tmdb get season %d: %w", s.SeasonNumber, err)
-		}
-
-		var seasonEpisodes []tv.ProviderEpisode
-
-		for _, ep := range season.Episodes {
-			airDate, _ := parseDate(ep.AirDate)
-			seasonEpisodes = append(seasonEpisodes, tv.ProviderEpisode{
-				ExternalID:     domain.NewMediaIdentity(domain.KindTMDBEpisode, strconv.Itoa(ep.ID)),
-				ShowExternalID: showExtID,
-				SeasonNumber:   ep.SeasonNumber,
-				EpisodeNumber:  ep.EpisodeNumber,
-				Title:          ep.Name,
-				Overview:       ep.Overview,
-				AirDate:        airDate,
-				Runtime:        ep.Runtime,
-				Still:          ep.StillPath,
-				Rating:         float32(ep.VoteAverage),
-				VoteCount:      ep.VoteCount,
-				IsSeasonFinale: ep.EpisodeType == "finale",
-			})
-		}
-
-		allSeasons = append(allSeasons, tv.ProviderSeason{
-			SeasonNumber: season.SeasonNumber,
-			Rating:       nil,
-			VoteCount:    nil,
-			ExternalID:   new(domain.NewMediaIdentity(domain.KindTMDBSeason, strconv.Itoa(season.ID))),
-			Title:        new(season.Name),
-			Episodes:     seasonEpisodes,
-		})
-	}
-
-	return allSeasons, nil
-}
-
-func (p *Provider) GetEpisodeGroups(ctx context.Context, showID string) ([]tv.EpisodeGroup, error) {
-	tmdbID, err := strconv.Atoi(showID)
-	if err != nil {
-		return nil, fmt.Errorf("invalid tmdb tv id %q: %w", showID, err)
-	}
-
-	groups, err := p.client.GetEpisodeGroups(ctx, tmdbID)
-	if err != nil {
-		return nil, fmt.Errorf("tmdb get episode groups %d: %w", tmdbID, err)
-	}
-
-	out := make([]tv.EpisodeGroup, len(groups))
-	for i, g := range groups {
-		out[i] = tv.EpisodeGroup{
-			ID:           g.ID,
-			Name:         g.Name,
-			Description:  g.Description,
-			Type:         tv.EpisodeGroupType(g.Type),
-			EpisodeCount: g.EpisodeCount,
-			GroupCount:   g.GroupCount,
-		}
-	}
-	return out, nil
-}
-
-func (p *Provider) GetEpisodeGroupDetail(ctx context.Context, groupID string) (*tv.EpisodeGroupDetail, error) {
-	detail, err := p.client.GetEpisodeGroupDetail(ctx, groupID)
-	if err != nil {
-		return nil, fmt.Errorf("tmdb get episode group detail %q: %w", groupID, err)
-	}
-
-	groups := make([]tv.EpisodeGrouping, len(detail.Groups))
-	for i, g := range detail.Groups {
-		episodes := make([]tv.ProviderEpisode, len(g.Episodes))
-		for j, ep := range g.Episodes {
-			airDate, _ := parseDate(ep.AirDate)
-			episodes[j] = tv.ProviderEpisode{
-				ExternalID:     domain.NewMediaIdentity(domain.KindTMDBTV, strconv.Itoa(ep.ID)),
-				ShowExternalID: domain.NewMediaIdentity(domain.KindTMDBTV, strconv.Itoa(ep.ShowID)),
-				SeasonNumber:   ep.SeasonNumber,
-				EpisodeNumber:  ep.EpisodeNumber,
-				Title:          ep.Name,
-				Overview:       ep.Overview,
-				AirDate:        airDate,
-				Runtime:        ep.Runtime,
-				Still:          ep.StillPath,
-				Rating:         float32(ep.VoteAverage),
-				VoteCount:      ep.VoteCount,
-				IsSeasonFinale: ep.EpisodeType == "finale",
-			}
-		}
-		groups[i] = tv.EpisodeGrouping{
-			ID:       g.ID,
-			Name:     g.Name,
-			Order:    g.Order,
-			Episodes: episodes,
-		}
-	}
-
-	return &tv.EpisodeGroupDetail{
-		ID:     detail.ID,
-		Name:   detail.Name,
-		Type:   tv.EpisodeGroupType(detail.Type),
-		Groups: groups,
+	return &movie.MovieResult{
+		Title:            d.Title,
+		ExternalIDs:      extIDs,
+		OriginalTitle:    new(d.OriginalTitle),
+		OriginalLanguage: new(d.OriginalLanguage),
+		Overview:         new(d.Overview),
+		Tagline:          new(d.Tagline),
+		Status:           new(d.Status),
+		ReleaseDate:      parseOptionalDate(d.ReleaseDate),
+		Runtime:          new(d.Runtime),
+		Genres:           mapGenreNames(d.Genres),
+		Images:           collectImages(d.PosterPath, d.BackdropPath),
 	}, nil
 }
 
@@ -313,58 +104,11 @@ func (p *Provider) Search(ctx context.Context, query domain.SearchQuery) ([]doma
 
 	var results []domain.SearchResult
 	for _, h := range hits {
-		r, ok := p.mapMultiResult(h)
-		if !ok {
-			continue // skip unrelated
+		if r, ok := p.mapMultiResult(h); ok {
+			results = append(results, r)
 		}
-		results = append(results, r)
 	}
 	return results, nil
-}
-
-func (p *Provider) tvExternalIDs(ctx context.Context, tmdbID int) []domain.MediaIdentity {
-	ext, err := p.client.GetTVExternalIDs(ctx, tmdbID)
-	if err != nil {
-		return nil
-	}
-	return mapExternalIDs(ext)
-}
-
-func (p *Provider) movieExternalIDs(ctx context.Context, tmdbID int) []domain.MediaIdentity {
-	ext, err := p.client.GetMovieExternalIDs(ctx, tmdbID)
-	if err != nil {
-		return nil
-	}
-	return mapExternalIDs(ext)
-}
-
-func mapExternalIDs(e *ExternalIDs) []domain.MediaIdentity {
-	var out []domain.MediaIdentity
-	if e.IMDbID != "" {
-		out = append(out, domain.NewMediaIdentity(domain.KindIMDB, e.IMDbID))
-	}
-	if e.TVDBID != 0 {
-		out = append(out, domain.NewMediaIdentity(domain.KindTVDB, strconv.Itoa(e.TVDBID)))
-	}
-	if e.WikidataID != "" {
-		out = append(out, domain.NewMediaIdentity(domain.KindWikidata, e.WikidataID))
-	}
-	return out
-}
-
-func yearFromDate(date string) int {
-	if len(date) < 4 {
-		return 0
-	}
-	year, _ := strconv.Atoi(date[:4])
-	return year
-}
-
-func parseDate(s string) (time.Time, error) {
-	if s == "" {
-		return time.Time{}, fmt.Errorf("empty date")
-	}
-	return time.Parse("2006-01-02", s)
 }
 
 func (p *Provider) mapMultiResult(h MultiSearchResult) (domain.SearchResult, bool) {
@@ -392,4 +136,152 @@ func (p *Provider) mapMultiResult(h MultiSearchResult) (domain.SearchResult, boo
 	default:
 		return domain.SearchResult{}, false
 	}
+}
+
+const episodeGroupTypeProduction = 6
+
+func (p *Provider) resolveSeasons(ctx context.Context, tmdbID int, show *TVDetails) ([]tv.SeasonResult, error) {
+	if seasons := p.tryAppendedEpisodeGroups(ctx, show.EpisodeGroups); len(seasons) > 0 {
+		return seasons, nil
+	}
+	return p.fetchRegularSeasons(ctx, tmdbID, show)
+}
+
+func (p *Provider) tryAppendedEpisodeGroups(ctx context.Context, groups *EpisodeGroupsResult) []tv.SeasonResult {
+	if groups == nil || len(groups.Results) == 0 {
+		return nil
+	}
+
+	var best *EpisodeGroupSummary
+	for i := range groups.Results {
+		if groups.Results[i].Type == episodeGroupTypeProduction {
+			best = &groups.Results[i]
+			break
+		}
+	}
+	if best == nil {
+		return nil
+	}
+
+	detail, err := p.client.GetEpisodeGroupDetail(ctx, best.ID)
+	if err != nil {
+		return nil // fall through to regular seasons
+	}
+
+	seasons := make([]tv.SeasonResult, 0, len(detail.Groups))
+	for _, g := range detail.Groups {
+		seasons = append(seasons, tv.SeasonResult{
+			Number:   g.Order,
+			Title:    new(g.Name),
+			Episodes: mapEpisodes(g.Episodes),
+		})
+	}
+	return seasons
+}
+
+func (p *Provider) fetchRegularSeasons(ctx context.Context, tmdbID int, show *TVDetails) ([]tv.SeasonResult, error) {
+	results := make([]tv.SeasonResult, 0, len(show.Seasons))
+	for _, s := range show.Seasons {
+		season, err := p.client.GetSeason(ctx, tmdbID, s.SeasonNumber)
+		if err != nil {
+			return nil, fmt.Errorf("get season %d: %w", s.SeasonNumber, err)
+		}
+		results = append(results, tv.SeasonResult{
+			Number:   season.SeasonNumber,
+			Title:    new(season.Name),
+			Episodes: mapEpisodes(season.Episodes),
+		})
+	}
+	return results, nil
+}
+
+func extractAppendedExternalIDs(ext *ExternalIDs) []domain.MediaIdentity {
+	if ext == nil {
+		return nil
+	}
+	return mapExternalIDs(ext)
+}
+
+func mapExternalIDs(e *ExternalIDs) []domain.MediaIdentity {
+	var out []domain.MediaIdentity
+	if e.IMDbID != "" {
+		out = append(out, domain.NewMediaIdentity(domain.KindIMDB, e.IMDbID))
+	}
+	if e.TVDBID != 0 {
+		out = append(out, domain.NewMediaIdentity(domain.KindTVDB, strconv.Itoa(e.TVDBID)))
+	}
+	if e.WikidataID != "" {
+		out = append(out, domain.NewMediaIdentity(domain.KindWikidata, e.WikidataID))
+	}
+	return out
+}
+
+func mapEpisodes(eps []Episode) []tv.EpisodeResult {
+	out := make([]tv.EpisodeResult, 0, len(eps))
+	for _, ep := range eps {
+		out = append(out, tv.EpisodeResult{
+			ExternalID:    domain.NewMediaIdentity(domain.KindTMDBEpisode, strconv.Itoa(ep.ID)),
+			SeasonNumber:  ep.SeasonNumber,
+			EpisodeNumber: ep.EpisodeNumber,
+			Title:         ep.Name,
+			Overview:      optStr(ep.Overview),
+			AirDate:       parseOptionalDate(ep.AirDate),
+			Runtime:       optInt(ep.Runtime),
+			Still:         optStr(ep.StillPath),
+			IsFinale:      ep.EpisodeType == "finale",
+		})
+	}
+	return out
+}
+
+func mapGenreNames(genres []Genre) []string {
+	out := make([]string, len(genres))
+	for i, g := range genres {
+		out[i] = g.Name
+	}
+	return out
+}
+
+func collectImages(poster, backdrop string) []domain.ProviderImage {
+	var out []domain.ProviderImage
+	if poster != "" {
+		out = append(out, domain.ProviderImage{Role: domain.ImageRolePoster, Path: poster})
+	}
+	if backdrop != "" {
+		out = append(out, domain.ProviderImage{Role: domain.ImageRoleBackdrop, Path: backdrop})
+	}
+	return out
+}
+
+func optStr(s string) *string {
+	if s == "" {
+		return nil
+	}
+	return &s
+}
+
+func optInt(i int) *int {
+	if i == 0 {
+		return nil
+	}
+	return &i
+}
+
+func parseOptionalDate(s string) *time.Time {
+	if s == "" {
+		return nil
+	}
+	t, err := time.Parse("2006-01-02", s)
+	if err != nil {
+		return nil
+	}
+	return &t
+}
+
+func yearFromDate(date string) int {
+	if len(date) < 4 {
+		return 0
+	}
+	year, _ := strconv.Atoi(date[:4])
+	return year
 }

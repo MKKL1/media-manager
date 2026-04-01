@@ -72,11 +72,16 @@ func New(ctx context.Context, cfg *Config) (*App, ShutdownFunc, error) {
 	}
 
 	provider := tmdb.NewProvider(cfg.TMDB.APIKey)
+
 	handlers := metadata.Handlers{
-		movie.MediaType: movie.NewMovieHandler(map[domain.ProviderName]movie.Fetcher{domain.ProviderTMDB: provider}),
-		tv.MediaType: tv.NewTVHandler(
+		movie.MediaType: movie.NewHandler(
+			map[domain.ProviderName]movie.Fetcher{domain.ProviderTMDB: provider},
+			map[domain.ProviderName]domain.ImageResolver{domain.ProviderTMDB: provider},
+		),
+		tv.MediaType: tv.NewHandler(
 			map[domain.ProviderName]tv.Fetcher{domain.ProviderTMDB: provider},
-			map[domain.ProviderName]domain.ImageResolver{"tmdb": provider}),
+			map[domain.ProviderName]domain.ImageResolver{domain.ProviderTMDB: provider},
+		),
 	}
 
 	wfBackend := wfinfra.NewBackend(
@@ -100,14 +105,6 @@ func New(ctx context.Context, cfg *Config) (*App, ShutdownFunc, error) {
 	router.Handle("/diag/*", http.StripPrefix("/diag", diag.NewServeMux(wfBackend)))
 
 	srv := &http.Server{Addr: cfg.HTTP.Addr, Handler: router}
-
-	//err = chi.Walk(router, func(method string, route string, handler http.Handler, middlewares ...func(http.Handler) http.Handler) error {
-	//	fmt.Printf("[%s]: '%s' has %d middlewares\n", method, route, len(middlewares))
-	//	return nil
-	//})
-	//if err != nil {
-	//	return nil, nil, err
-	//}
 
 	shutdown := func(ctx context.Context) error {
 		var errs []error

@@ -1,14 +1,7 @@
 package tv
 
-import (
-	"context"
-)
-
-type Searcher interface {
-	SearchTV(ctx context.Context, query SearchQuery) ([]SearchResult, error)
-}
+import "context"
 
 type Fetcher interface {
-	GetShow(ctx context.Context, id string) (*ProviderShow, error)
-	GetEpisodes(ctx context.Context, id string) ([]ProviderSeason, error)
+	FetchShow(ctx context.Context, id string) (*ShowResult, error)
 }

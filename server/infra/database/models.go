@@ -36,6 +36,8 @@ type MediaItem struct {
 	Monitored bool            `bun:"monitored,notnull"`
 	Status    string          `bun:"status,notnull"`
 	Metadata  json.RawMessage `bun:"metadata,type:jsonb"`
+	//TODO episode numbers should be a column to allow for queries on them I think
+	// Maybe it could be done well enough with json queries and postgres
 }
 
 type Media struct {

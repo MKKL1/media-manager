@@ -3,12 +3,13 @@ package tv
 import (
 	"context"
 	"fmt"
-	"server/internal/domain"
-	"server/internal/metadata"
 	"time"
 
 	json "github.com/bytedance/sonic"
 	"github.com/google/uuid"
+
+	"server/internal/domain"
+	"server/internal/metadata"
 )
 
 const summaryMaxLength = 150
@@ -20,60 +21,14 @@ type Handler struct {
 	imageResolvers map[domain.ProviderName]domain.ImageResolver
 }
 
-func NewTVHandler(fetchers map[domain.ProviderName]Fetcher, imageResolvers map[domain.ProviderName]domain.ImageResolver) *Handler {
+func NewHandler(
+	fetchers map[domain.ProviderName]Fetcher,
+	imageResolvers map[domain.ProviderName]domain.ImageResolver,
+) *Handler {
 	return &Handler{fetchers: fetchers, imageResolvers: imageResolvers}
 }
 
-func (h *Handler) Type() domain.MediaType {
-	return MediaType
-}
-
-func (h *Handler) ToSummary(media domain.Media) (domain.MediaSummary, error) {
-	var meta Metadata
-
-	if len(media.Metadata) > 0 {
-		if err := json.Unmarshal(media.Metadata, &meta); err != nil {
-			return domain.MediaSummary{}, fmt.Errorf("json.Unmarshal: %w", err)
-		}
-	}
-
-	ires, ok := h.imageResolvers[media.PrimaryIdentity.Kind.ProviderName]
-	if !ok {
-		return domain.MediaSummary{}, fmt.Errorf(
-			"h.imageResolvers %s not found for tv: %w",
-			media.PrimaryIdentity.Kind.ProviderName,
-			domain.ErrNoProvider,
-		)
-	}
-
-	var img domain.Image
-	var found = false
-	for _, e := range media.Images {
-		if e.Role == domain.ImageRolePoster {
-			img = e
-			found = true
-			break
-		}
-	}
-	var posterPath domain.ImageURL = ""
-	if found {
-		posterPath = ires.Resolve(img.ExternalPath, domain.ImageQualityThumb, img.Role)
-	}
-	return domain.MediaSummary{
-		ID:              media.ID,
-		Type:            media.Type,
-		Title:           media.Title,
-		OriginalTitle:   meta.OriginalTitle,
-		OriginalLang:    "",
-		Monitored:       media.Monitored,
-		Status:          media.Status,
-		Summary:         shorten(meta.Overview, summaryMaxLength) + "...",
-		ReleaseDate:     meta.FirstAirDate,
-		PrimaryIdentity: media.PrimaryIdentity,
-		PosterPath:      posterPath,
-		Metadata:        nil,
-	}, nil
-}
+func (h *Handler) Type() domain.MediaType { return MediaType }
 
 func (h *Handler) FetchMedia(ctx context.Context, id domain.MediaIdentity) (*domain.MediaWithItems, error) {
 	fetcher, ok := h.fetchers[id.Kind.ProviderName]
@@ -81,31 +36,124 @@ func (h *Handler) FetchMedia(ctx context.Context, id domain.MediaIdentity) (*dom
 		return nil, fmt.Errorf("provider %s not found for tv: %w", id.Kind.ProviderName, domain.ErrNoProvider)
 	}
 
-	//This can be easily optimized to be one call
-	show, err := fetcher.GetShow(ctx, id.ID)
+	result, err := fetcher.FetchShow(ctx, id.ID)
 	if err != nil {
-		return nil, err
-	}
-
-	seasons, err := fetchEpisodes(ctx, id, fetcher)
-	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("fetch show %s: %w", id, err)
 	}
 
 	mediaID := domain.GenerateMediaID()
+	now := time.Now()
 
-	var seasonData []SeasonMetadata
-	var items []domain.MediaItem
+	seasonsMeta, items, err := mapSeasonsAndItems(result.Seasons, mediaID)
+	if err != nil {
+		return nil, err
+	}
 
-	for _, se := range seasons {
-		var epCount = 0
-		var releasedEpCount = 0
+	meta := Metadata{
+		OriginalTitle:    result.OriginalTitle,
+		OriginalLanguage: result.OriginalLanguage,
+		Overview:         result.Overview,
+		Tagline:          result.Tagline,
+		FirstAirDate:     result.FirstAirDate,
+		LastAirDate:      result.LastAirDate,
+		SeasonCount:      result.SeasonCount,
+		EpisodeCount:     result.EpisodeCount,
+		Runtime:          result.Runtime,
+		Genres:           result.Genres,
+		Tags:             result.Tags,
+		Seasons:          seasonsMeta,
+	}
 
-		for _, ep := range se.Episodes {
-			itemID := uuid.New()
+	metaJSON, err := json.Marshal(meta)
+	if err != nil {
+		return nil, fmt.Errorf("marshal tv metadata: %w", err)
+	}
 
+	images := mapProviderImages(result.Images, id.Kind.ProviderName)
+	externalIDs := append([]domain.MediaIdentity{id}, result.ExternalIDs...)
+
+	status := ""
+	if result.Status != nil {
+		status = *result.Status
+	}
+
+	media := domain.Media{
+		ID:                mediaID,
+		Type:              MediaType,
+		Title:             result.Title,
+		Status:            status,
+		Monitored:         false,
+		PrimaryIdentity:   id,
+		RelatedIdentities: externalIDs,
+		Metadata:          metaJSON,
+		Images:            images,
+		CreatedAt:         now,
+		LastSync:          now,
+		UpdatedAt:         now,
+	}
+
+	return &domain.MediaWithItems{Media: media, Items: items}, nil
+}
+
+func (h *Handler) ToSummary(media domain.Media) (domain.MediaSummary, error) {
+	var meta Metadata
+	if len(media.Metadata) > 0 {
+		if err := json.Unmarshal(media.Metadata, &meta); err != nil {
+			return domain.MediaSummary{}, fmt.Errorf("unmarshal tv metadata: %w", err)
+		}
+	}
+
+	posterPath, err := h.resolvePoster(media)
+	if err != nil {
+		return domain.MediaSummary{}, err
+	}
+
+	var firstAirDate time.Time
+	if meta.FirstAirDate != nil {
+		firstAirDate = *meta.FirstAirDate
+	}
+
+	return domain.MediaSummary{
+		ID:              media.ID,
+		Type:            media.Type,
+		Title:           media.Title,
+		OriginalTitle:   ptrOr(meta.OriginalTitle, ""),
+		OriginalLang:    ptrOr(meta.OriginalLanguage, ""),
+		Monitored:       media.Monitored,
+		Status:          media.Status,
+		Summary:         truncate(ptrOr(meta.Overview, ""), summaryMaxLength),
+		ReleaseDate:     firstAirDate,
+		PrimaryIdentity: media.PrimaryIdentity,
+		PosterPath:      posterPath,
+	}, nil
+}
+
+func (h *Handler) resolvePoster(media domain.Media) (domain.ImageURL, error) {
+	resolver, ok := h.imageResolvers[media.PrimaryIdentity.Kind.ProviderName]
+	if !ok {
+		return "", fmt.Errorf(
+			"image resolver for %s not found: %w",
+			media.PrimaryIdentity.Kind.ProviderName,
+			domain.ErrNoProvider,
+		)
+	}
+	for _, img := range media.Images {
+		if img.Role == domain.ImageRolePoster {
+			return resolver.Resolve(img.ExternalPath, domain.ImageQualityThumb, img.Role), nil
+		}
+	}
+	return "", nil
+}
+
+func mapSeasonsAndItems(seasons []SeasonResult, mediaID domain.MediaID) ([]SeasonMetadata, []domain.MediaItem, error) {
+	var (
+		seasonsMeta []SeasonMetadata
+		items       []domain.MediaItem
+	)
+	for _, s := range seasons {
+		for _, ep := range s.Episodes {
 			epMeta := EpisodeMetadata{
-				OriginalTitle: ep.Title,
+				OriginalTitle: &ep.Title,
 				Overview:      ep.Overview,
 				AirDate:       ep.AirDate,
 				Runtime:       ep.Runtime,
@@ -113,148 +161,51 @@ func (h *Handler) FetchMedia(ctx context.Context, id domain.MediaIdentity) (*dom
 				SeasonNumber:  ep.SeasonNumber,
 				EpisodeNumber: ep.EpisodeNumber,
 			}
-
-			epMetaJSON, err := json.Marshal(epMeta)
+			epJSON, err := json.Marshal(epMeta)
 			if err != nil {
-				return nil, fmt.Errorf("json.Marshal epMeta: %w", err)
+				return nil, nil, fmt.Errorf("marshal episode metadata: %w", err)
 			}
-
 			items = append(items, domain.MediaItem{
-				ID:       itemID,
+				ID:       uuid.New(),
 				MediaId:  mediaID,
 				Status:   "Unknown",
-				Metadata: epMetaJSON,
+				Metadata: epJSON,
 			})
-
-			epCount++
-			//TODO get actual data for that
-			releasedEpCount++
 		}
-
-		seasonData = append(seasonData, SeasonMetadata{
-			SeasonNumber:         se.SeasonNumber,
-			EpisodeCount:         epCount,
-			EpsiodeReleasedCount: releasedEpCount,
+		seasonsMeta = append(seasonsMeta, SeasonMetadata{
+			SeasonNumber:         s.Number,
+			EpisodeCount:         len(s.Episodes),
+			EpisodeReleasedCount: len(s.Episodes), // TODO derive from air dates
 		})
 	}
+	return seasonsMeta, items, nil
+}
 
-	tvMeta := Metadata{
-		OriginalTitle: show.OriginalTitle,
-		Overview:      show.Overview,
-		Tagline:       show.Tagline,
-		FirstAirDate:  show.FirstAirDate,
-		LastAirDate:   show.LastAirDate,
-		SeasonCount:   show.SeasonCount,
-		EpisodeCount:  show.EpisodeCount,
-		Runtime:       show.Runtime,
-		Genres:        show.Genres,
-		Poster:        show.Poster,
-		Backdrop:      show.Backdrop,
-		Seasons:       seasonData,
-	}
-
-	tvMetaJSON, err := json.Marshal(tvMeta)
-	if err != nil {
-		return nil, fmt.Errorf("json.Marshal tvMeta: %w", err)
-	}
-
-	externalIds := []domain.MediaIdentity{id}
-	externalIds = append(externalIds, show.ExternalIDs...)
-
-	images := []domain.Image{
-		{
+func mapProviderImages(images []domain.ProviderImage, source domain.ProviderName) []domain.Image {
+	out := make([]domain.Image, 0, len(images))
+	for _, img := range images {
+		out = append(out, domain.Image{
 			ID:           uuid.New(),
-			Role:         domain.ImageRolePoster,
-			Source:       id.Kind.ProviderName,
-			ExternalPath: show.Poster,
-		},
-		{
-			ID:           uuid.New(),
-			Role:         domain.ImageRoleBackdrop,
-			Source:       id.Kind.ProviderName,
-			ExternalPath: show.Backdrop,
-		},
-	}
-
-	now := time.Now()
-	media := domain.Media{
-		ID:                mediaID,
-		Type:              MediaType,
-		Title:             show.Title,
-		Status:            show.Status,
-		Monitored:         false,
-		PrimaryIdentity:   id,
-		RelatedIdentities: externalIds,
-		Metadata:          tvMetaJSON,
-		CreatedAt:         now,
-		LastSync:          now,
-		UpdatedAt:         now,
-		Images:            images,
-	}
-
-	return &domain.MediaWithItems{
-		Media: media,
-		Items: items,
-	}, nil
-}
-
-func fetchEpisodes(ctx context.Context, id domain.MediaIdentity, fetcher Fetcher) ([]ProviderSeason, error) {
-	gf, ok := fetcher.(EpisodeGroupFetcher)
-	if ok {
-		episodes, err := fetchEpisodesFromGroup(ctx, id, gf)
-		if err != nil {
-			return nil, err
-		}
-		// TODO Here it would be very useful to somehow verify that it's correct, for example we may get 1 episode, but there are 20
-		if len(episodes) != 0 {
-			return episodes, nil
-		}
-	}
-
-	return fetcher.GetEpisodes(ctx, id.ID)
-}
-
-func fetchEpisodesFromGroup(ctx context.Context, id domain.MediaIdentity, gf EpisodeGroupFetcher) ([]ProviderSeason, error) {
-	groups, err := gf.GetEpisodeGroups(ctx, id.ID)
-	if err != nil {
-		return nil, err
-	}
-	if best := selectBestEpisodeGroup(groups); best != nil {
-		detail, err := gf.GetEpisodeGroupDetail(ctx, best.ID)
-		if err == nil {
-			return flattenEpisodeGroupDetail(detail), nil
-		}
-	}
-	return nil, nil
-}
-
-func selectBestEpisodeGroup(groups []EpisodeGroup) *EpisodeGroup {
-	for _, g := range groups {
-		if g.Type == EpisodeGroupTypeProduction {
-			return &g
-		}
-	}
-	return nil
-}
-
-func flattenEpisodeGroupDetail(detail *EpisodeGroupDetail) []ProviderSeason {
-	var out []ProviderSeason
-	for _, g := range detail.Groups {
-		out = append(out, ProviderSeason{
-			SeasonNumber: g.Order,
-			ExternalID:   new(domain.NewMediaIdentity(domain.KindTMDBSeason, g.ID)),
-			Title:        new(g.Name),
-			Episodes:     g.Episodes,
+			Role:         img.Role,
+			Source:       source,
+			ExternalPath: img.Path,
 		})
 	}
 	return out
 }
 
-// shorten is safe
-func shorten(s string, max int) string {
+func truncate(s string, max int) string {
 	runes := []rune(s)
 	if len(runes) <= max {
 		return s
 	}
-	return string(runes[:max])
+	return string(runes[:max]) + "..."
+}
+
+// ptrOr dereferences a pointer, returning fallback if nil.
+func ptrOr[T any](p *T, fallback T) T {
+	if p != nil {
+		return *p
+	}
+	return fallback
 }

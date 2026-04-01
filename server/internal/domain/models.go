@@ -10,7 +10,7 @@ import (
 
 type MediaType string
 
-type MediaID uuid.UUID
+type MediaID uuid.UUID //TODO potentially it could be replaced with simple int
 
 func (id MediaID) String() string     { return uuid.UUID(id).String() }
 func NewMediaID(id uuid.UUID) MediaID { return MediaID(id) }

@@ -37,6 +37,42 @@ type MediaSummaryResponse struct {
 	Metadata        any                   `json:"metadata"`
 }
 
+type MediaResponse struct {
+	ID              string                `json:"id"`
+	Type            string                `json:"type"`
+	Title           string                `json:"title"`
+	OriginalTitle   string                `json:"original_title"`
+	OriginalLang    string                `json:"original_lang"`
+	Monitored       bool                  `json:"monitored"`
+	Status          string                `json:"status"`
+	Description     string                `json:"description"`
+	ReleaseDate     string                `json:"release_date"`
+	PrimaryIdentity MediaIdentityResponse `json:"primary_identity"`
+	PosterPath      string                `json:"poster_path"`
+	BackfillPath    string                `json:"backfill_path"`
+	//TODO add info about how it's stored locally
+	Metadata any `json:"metadata"`
+}
+
+type MediaItemResponse struct {
+	ID              string                `json:"id"`
+	MediaID         string                `json:"media_id"`
+	Type            string                `json:"type"`
+	Title           string                `json:"title"`
+	Description     string                `json:"description"`
+	ReleaseDate     string                `json:"release_date"`
+	PrimaryIdentity MediaIdentityResponse `json:"primary_identity"`
+	PosterPath      string                `json:"poster_path"`
+
+	Metadata any `json:"metadata"`
+
+	//TODO those terms don't exist outside of tv shows
+	EpisodeNumber  int `json:"episode_number"`
+	SeasonNumber   int `json:"season_number"`
+	AbsoluteNumber int `json:"absolute_number"`
+	//TODO add info about how it's stored locally
+}
+
 // SearchResultResponse corresponds to domain.SearchResult
 type SearchResultResponse struct {
 	Identity   MediaIdentityResponse `json:"identity"`

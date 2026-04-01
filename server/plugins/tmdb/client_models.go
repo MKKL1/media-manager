@@ -50,15 +50,10 @@ type TVDetails struct {
 	Networks         []Network       `json:"networks"`
 	CreatedBy        []Creator       `json:"created_by"`
 	Seasons          []SeasonSummary `json:"seasons"`
-}
 
-type SeasonSummary struct {
-	ID           int    `json:"id"`
-	SeasonNumber int    `json:"season_number"`
-	EpisodeCount int    `json:"episode_count"`
-	Name         string `json:"name"`
-	AirDate      string `json:"air_date"`
-	PosterPath   string `json:"poster_path"`
+	// Appended via append_to_response
+	ExternalIDs   *ExternalIDs         `json:"external_ids,omitempty"`
+	EpisodeGroups *EpisodeGroupsResult `json:"episode_groups,omitempty"`
 }
 
 type MovieDetails struct {
@@ -84,6 +79,18 @@ type MovieDetails struct {
 	IMDbID              string              `json:"imdb_id"`
 	Genres              []Genre             `json:"genres"`
 	ProductionCompanies []ProductionCompany `json:"production_companies"`
+
+	// Appended via append_to_response
+	ExternalIDs *ExternalIDs `json:"external_ids,omitempty"`
+}
+
+type SeasonSummary struct {
+	ID           int    `json:"id"`
+	SeasonNumber int    `json:"season_number"`
+	EpisodeCount int    `json:"episode_count"`
+	Name         string `json:"name"`
+	AirDate      string `json:"air_date"`
+	PosterPath   string `json:"poster_path"`
 }
 
 type TVShow struct {

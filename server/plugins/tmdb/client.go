@@ -12,6 +12,7 @@ import (
 
 	json "github.com/bytedance/sonic"
 	"github.com/hashicorp/go-retryablehttp"
+	"github.com/maypok86/otter"
 	"github.com/sony/gobreaker"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel/attribute"
@@ -26,6 +27,7 @@ import (
 type Client struct {
 	http    *http.Client
 	breaker *gobreaker.CircuitBreaker
+	cache   otter.Cache[string, []byte]
 	apiKey  string
 	baseURL string
 }
@@ -55,14 +57,21 @@ func NewClient(apiKey string) *Client {
 		},
 	})
 
+	cache, err := otter.MustBuilder[string, []byte](5000).
+		WithTTL(5 * time.Minute).
+		Build()
+	if err != nil {
+		panic("failed to build tmdb cache: " + err.Error())
+	}
+
 	return &Client{
 		http:    retryClient.StandardClient(),
 		breaker: breaker,
+		cache:   cache,
 		apiKey:  apiKey,
 		baseURL: "https://api.themoviedb.org",
 	}
 }
-
 func (c *Client) SearchTV(ctx context.Context, params SearchTVParams) ([]TVShow, error) {
 	if params.Query == "" {
 		return nil, fmt.Errorf("query is required")
@@ -144,7 +153,10 @@ func (c *Client) SearchMulti(ctx context.Context, query string, page int) ([]Mul
 }
 
 func (c *Client) GetTV(ctx context.Context, id int) (*TVDetails, error) {
-	data, err := c.get(ctx, "/3/tv/"+strconv.Itoa(id), url.Values{})
+	q := url.Values{}
+	q.Set("append_to_response", "external_ids,episode_groups")
+
+	data, err := c.get(ctx, "/3/tv/"+strconv.Itoa(id), q)
 	if err != nil {
 		return nil, err
 	}
@@ -158,7 +170,10 @@ func (c *Client) GetTV(ctx context.Context, id int) (*TVDetails, error) {
 }
 
 func (c *Client) GetMovie(ctx context.Context, id int) (*MovieDetails, error) {
-	data, err := c.get(ctx, "/3/movie/"+strconv.Itoa(id), url.Values{})
+	q := url.Values{}
+	q.Set("append_to_response", "external_ids")
+
+	data, err := c.get(ctx, "/3/movie/"+strconv.Itoa(id), q)
 	if err != nil {
 		return nil, err
 	}
@@ -172,6 +187,12 @@ func (c *Client) GetMovie(ctx context.Context, id int) (*MovieDetails, error) {
 }
 
 func (c *Client) get(ctx context.Context, path string, params url.Values) ([]byte, error) {
+	key := path + "?" + params.Encode()
+
+	if data, ok := c.cache.Get(key); ok {
+		return data, nil
+	}
+
 	result, err := c.breaker.Execute(func() (interface{}, error) {
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+path+"?"+params.Encode(), nil)
 		if err != nil {
@@ -195,7 +216,10 @@ func (c *Client) get(ctx context.Context, path string, params url.Values) ([]byt
 		return nil, err
 	}
 
-	return result.([]byte), nil
+	data := result.([]byte)
+	c.cache.Set(key, data)
+
+	return data, nil
 }
 
 func tmdbStatusError(status int) error {
@@ -255,6 +279,10 @@ func (c *Client) GetMovieExternalIDs(ctx context.Context, id int) (*ExternalIDs,
 
 	return &ext, nil
 }
+
+//TODO this should probably not be exposed to other parts of the system
+// Exposing this means that it's hard to optimize media fetching
+// Maybe it would make more sense if users could choose some episode system when fetching media
 
 func (c *Client) GetEpisodeGroups(ctx context.Context, seriesID int) ([]EpisodeGroupSummary, error) {
 	data, err := c.get(ctx, fmt.Sprintf("/3/tv/%d/episode_groups", seriesID), url.Values{})

@@ -7,115 +7,78 @@ import (
 
 const MediaType domain.MediaType = "tv"
 
-type Show struct {
-	domain.MediaItem
-	Title string
-	Year  int
+type ShowResult struct {
+	Title       string
+	ExternalIDs []domain.MediaIdentity
+	Seasons     []SeasonResult
+
+	OriginalTitle    *string
+	OriginalLanguage *string
+	Overview         *string
+	Tagline          *string
+	Status           *string
+	FirstAirDate     *time.Time
+	LastAirDate      *time.Time
+	Runtime          *int
+	SeasonCount      *int
+	EpisodeCount     *int
+
+	Genres []string
+	Tags   []string
+	Images []domain.ProviderImage
 }
 
-type Metadata struct {
-	OriginalTitle string           `json:"originalTitle,omitempty"`
-	Overview      string           `json:"overview,omitempty"`
-	Tagline       string           `json:"tagline,omitempty"`
-	FirstAirDate  time.Time        `json:"firstAirDate,omitempty"`
-	LastAirDate   time.Time        `json:"lastAirDate,omitempty"`
-	SeasonCount   int              `json:"seasonCount,omitempty"`
-	EpisodeCount  int              `json:"episodeCount,omitempty"`
-	Runtime       int              `json:"runtime,omitempty"`
-	Genres        []string         `json:"genres,omitempty"`
-	Poster        string           `json:"poster,omitempty"`
-	Backdrop      string           `json:"backdrop,omitempty"`
-	Seasons       []SeasonMetadata `json:"seasons,omitempty"`
+// SeasonResult represents one season from a provider.
+type SeasonResult struct {
+	Number   int
+	Title    *string
+	Episodes []EpisodeResult
 }
 
-type SeasonMetadata struct {
-	SeasonNumber         int `json:"seasonNumber"`
-	EpisodeCount         int `json:"epCount"`         //Count of episodes declared by provider
-	EpsiodeReleasedCount int `json:"epReleasedCount"` //Count of episodes that are actually available/released to public
-}
-
-type EpisodeMetadata struct {
-	OriginalTitle string    `json:"originalTitle,omitempty"`
-	Overview      string    `json:"overview,omitempty"`
-	AirDate       time.Time `json:"airDate,omitempty"`
-	Runtime       int       `json:"runtime,omitempty"`
-	Still         string    `json:"still,omitempty"`
-	SeasonNumber  int       `json:"seasonNumber,omitempty"`
-	EpisodeNumber int       `json:"episodeNumber,omitempty"`
-}
-
-type Episode struct {
-	domain.MediaItem
-	ShowID        domain.MediaID
+// EpisodeResult represents one episode from a provider.
+type EpisodeResult struct {
+	ExternalID    domain.MediaIdentity
 	SeasonNumber  int
 	EpisodeNumber int
 	Title         string
-	AirDate       time.Time
+
+	Overview *string
+	AirDate  *time.Time
+	Runtime  *int
+	Still    *string
+	IsFinale bool
 }
 
-type SearchQuery struct {
-	Title    string
-	Year     int
-	Language string
+// Metadata is the TV-specific metadata stored as a JSON blob.
+type Metadata struct {
+	OriginalTitle    *string          `json:"original_title,omitempty"`
+	OriginalLanguage *string          `json:"original_language,omitempty"`
+	Overview         *string          `json:"overview,omitempty"`
+	Tagline          *string          `json:"tagline,omitempty"`
+	FirstAirDate     *time.Time       `json:"first_air_date,omitempty"`
+	LastAirDate      *time.Time       `json:"last_air_date,omitempty"`
+	SeasonCount      *int             `json:"season_count,omitempty"`
+	EpisodeCount     *int             `json:"episode_count,omitempty"`
+	Runtime          *int             `json:"runtime,omitempty"`
+	Genres           []string         `json:"genres,omitempty"`
+	Tags             []string         `json:"tags,omitempty"`
+	Seasons          []SeasonMetadata `json:"seasons,omitempty"`
 }
 
-type SearchResult struct {
-	ExternalID domain.MediaIdentity
-	Title      string
-	Year       int
-	Overview   string
-	Poster     string
-	Popularity float64
+// SeasonMetadata is stored per season inside Metadata.
+type SeasonMetadata struct {
+	SeasonNumber         int `json:"season_number"`
+	EpisodeCount         int `json:"ep_count"`
+	EpisodeReleasedCount int `json:"ep_released_count"`
 }
 
-type ProviderShow struct {
-	ExternalID       domain.MediaIdentity
-	ExternalIDs      []domain.MediaIdentity
-	Title            string
-	OriginalTitle    string
-	OriginalLanguage string
-	Overview         string
-	Tagline          string
-	Status           string
-	ContentRating    string
-	FirstAirDate     time.Time
-	LastAirDate      time.Time
-	Year             int
-	Runtime          int
-	SeasonCount      int
-	EpisodeCount     int
-	Genres           []string
-	OriginCountry    []string
-	Networks         []string
-	CreatedBy        []string
-	Poster           string //Different services may provide it differently, but leaving it as a simple path for now
-	Backdrop         string
-	Rating           float32
-	VoteCount        int
-	Popularity       float64
-}
-
-type ProviderSeason struct {
-	SeasonNumber int
-	Rating       *float32
-	VoteCount    *int
-	ExternalID   *domain.MediaIdentity
-	Title        *string
-	Episodes     []ProviderEpisode
-}
-
-type ProviderEpisode struct {
-	ExternalID     domain.MediaIdentity
-	ShowExternalID domain.MediaIdentity
-	SeasonNumber   int
-	EpisodeNumber  int
-	Title          string
-	Overview       string
-	AirDate        time.Time
-	Runtime        int
-	Still          string
-	Rating         float32
-	VoteCount      int
-	IsSeasonFinale bool
-	//TODO IsMidSeasonFinale, could be one string/enum
+// EpisodeMetadata is stored per media-item for individual episodes.
+type EpisodeMetadata struct {
+	OriginalTitle *string    `json:"original_title,omitempty"`
+	Overview      *string    `json:"overview,omitempty"`
+	AirDate       *time.Time `json:"air_date,omitempty"`
+	Runtime       *int       `json:"runtime,omitempty"`
+	Still         *string    `json:"still,omitempty"`
+	SeasonNumber  int        `json:"season_number,omitempty"`
+	EpisodeNumber int        `json:"episode_number,omitempty"`
 }

@@ -18,20 +18,18 @@ func NewService(repo domain.MediaRepository, handlers Handlers) *Service {
 func (s *Service) List(ctx context.Context, q domain.MediaQuery) (domain.MediaPage, error) {
 	list, total, err := s.repo.List(ctx, q)
 	if err != nil {
-		return domain.MediaPage{}, fmt.Errorf("s.repo.List: %w", err)
-	}
-
-	//get TV or movie specific handler
-	handler, err := s.handlers.Get(q.Type)
-	if err != nil {
-		return domain.MediaPage{}, fmt.Errorf("s.handlers.Get: %w", err)
+		return domain.MediaPage{}, fmt.Errorf("list media: %w", err)
 	}
 
 	summaries := make([]domain.MediaSummary, 0, len(list))
 	for _, m := range list {
+		handler, err := s.handlers.Get(m.Type)
+		if err != nil {
+			return domain.MediaPage{}, fmt.Errorf("get handler for %s: %w", m.Type, err)
+		}
 		summary, err := handler.ToSummary(m)
 		if err != nil {
-			return domain.MediaPage{}, fmt.Errorf("handler.ToSummary: %w", err)
+			return domain.MediaPage{}, fmt.Errorf("summarize %s: %w", m.ID, err)
 		}
 		summaries = append(summaries, summary)
 	}
@@ -42,4 +40,8 @@ func (s *Service) List(ctx context.Context, q domain.MediaQuery) (domain.MediaPa
 		Offset: q.Paginate.Offset,
 		Limit:  q.Paginate.Limit,
 	}, nil
+}
+
+func (s *Service) Get(ctx context.Context, id domain.MediaID) (domain.Media, error) {
+
 }

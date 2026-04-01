@@ -40,6 +40,10 @@ type ExternalIDs struct {
 	TwitterID   string `json:"twitter_id"`
 }
 
+type EpisodeGroupsResult struct {
+	Results []EpisodeGroupSummary `json:"results"`
+}
+
 type EpisodeGroupSummary struct {
 	ID           string   `json:"id"`
 	Name         string   `json:"name"`

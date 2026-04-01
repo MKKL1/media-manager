@@ -28,6 +28,7 @@ func NewMediaController(
 
 func (c *MediaController) Route(r *chi.Mux) {
 	r.Route("/api/1/media", func(r chi.Router) {
+		r.Get("/:id", c.GetMedia)
 		r.Post("/pull", c.PullMedia)
 		r.Get("/list", c.List)
 		r.Get("/search", c.Search)
@@ -102,6 +103,11 @@ func (c *MediaController) Search(w http.ResponseWriter, r *http.Request) {
 	for _, item := range results {
 		data = append(data, toSearchResultResponse(item))
 	}
+
+	writeJSON(w, http.StatusOK, map[string]any{"data": data})
+}
+
+func (c *MediaController) GetMedia(w http.ResponseWriter, r *http.Request) {
 
 	writeJSON(w, http.StatusOK, map[string]any{"data": data})
 }

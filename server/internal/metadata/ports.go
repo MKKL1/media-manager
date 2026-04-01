@@ -9,6 +9,7 @@ import (
 // Implemented by movie.Handler, tv.Handler.
 type MediaHandler interface {
 	Type() domain.MediaType
+	// FetchMedia calls external metadata provider
 	FetchMedia(ctx context.Context, id domain.MediaIdentity) (*domain.MediaWithItems, error)
 	ToSummary(media domain.Media) (domain.MediaSummary, error)
 }

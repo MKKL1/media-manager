@@ -7,6 +7,7 @@ require (
 	github.com/cschleiden/go-workflows v1.4.1
 	github.com/go-chi/chi/v5 v5.2.5
 	github.com/go-playground/validator/v10 v10.30.1
+	github.com/golang-migrate/migrate/v4 v4.16.2
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/schema v1.4.1
 	github.com/hashicorp/go-retryablehttp v0.7.8
@@ -15,12 +16,14 @@ require (
 	github.com/knadh/koanf/providers/env/v2 v2.0.0
 	github.com/knadh/koanf/providers/file v1.2.1
 	github.com/knadh/koanf/v2 v2.3.4
+	github.com/maypok86/otter v1.2.4
 	github.com/riverqueue/river v0.31.0
 	github.com/riverqueue/river/riverdriver/riverpgxv5 v0.31.0
 	github.com/riverqueue/river/rivertype v0.31.0
 	github.com/rs/zerolog v1.34.0
 	github.com/samber/slog-zerolog/v2 v2.9.1
 	github.com/sony/gobreaker v1.0.0
+	github.com/stretchr/testify v1.11.1
 	github.com/uptrace/bun v1.2.18
 	github.com/uptrace/bun/dialect/pgdialect v1.2.18
 	github.com/uptrace/bun/driver/pgdriver v1.2.18
@@ -41,16 +44,17 @@ require (
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/cloudwego/base64x v0.1.6 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
+	github.com/dolthub/maphash v0.1.0 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.12 // indirect
+	github.com/gammazero/deque v0.2.1 // indirect
 	github.com/go-errors/errors v1.4.2 // indirect
 	github.com/go-logr/logr v1.4.3 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-playground/locales v0.14.1 // indirect
 	github.com/go-playground/universal-translator v0.18.1 // indirect
 	github.com/go-viper/mapstructure/v2 v2.4.0 // indirect
-	github.com/golang-migrate/migrate/v4 v4.16.2 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.28.0 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-cleanhttp v0.5.2 // indirect
@@ -75,7 +79,6 @@ require (
 	github.com/samber/lo v1.52.0 // indirect
 	github.com/samber/slog-common v0.20.0 // indirect
 	github.com/stretchr/objx v0.5.2 // indirect
-	github.com/stretchr/testify v1.11.1 // indirect
 	github.com/tidwall/gjson v1.18.0 // indirect
 	github.com/tidwall/match v1.2.0 // indirect
 	github.com/tidwall/pretty v1.2.1 // indirect
