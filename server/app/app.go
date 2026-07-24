@@ -25,6 +25,8 @@ import (
 	"github.com/uptrace/bun"
 )
 
+//TODO Could make tag system, etc "4k" to be handled differently
+
 type App struct {
 	db         *bun.DB
 	wfWorker   *worker.Worker

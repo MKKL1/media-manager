@@ -3,6 +3,7 @@ package tv
 import (
 	"context"
 	"fmt"
+	"server/pkg"
 	"time"
 
 	json "github.com/bytedance/sonic"
@@ -14,7 +15,7 @@ import (
 
 const summaryMaxLength = 150
 
-var _ metadata.MediaHandler = (*Handler)(nil)
+var _ pkg.MediaHandler = (*Handler)(nil)
 
 type Handler struct {
 	fetchers       map[domain.ProviderName]Fetcher
