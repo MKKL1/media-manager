@@ -11,11 +11,12 @@ import (
 )
 
 type Config struct {
-	HTTP      HTTPConfig      `koanf:"http"`
-	Database  DatabaseConfig  `koanf:"database"`
-	Telemetry TelemetryConfig `koanf:"telemetry"`
-	TMDB      TMDBConfig      `koanf:"tmdb"`
-	Log       LogConfig       `koanf:"logging"`
+	HTTP     HTTPConfig              `koanf:"http"`
+	Database DatabaseConfig          `koanf:"database"`
+	TVDB     TVDBConfig              `koanf:"tvdb"`
+	Auth     AuthConfig              `koanf:"auth"`
+	Plugins  map[string]PluginConfig `koanf:"plugins"`
+	Log      LogConfig               `koanf:"logging"`
 }
 
 type HTTPConfig struct {
@@ -31,7 +32,6 @@ type DatabaseConfig struct {
 	SSLMode  string `koanf:"ssl_mode"`
 }
 
-// DSN returns a full postgres connection string for database.NewDB.
 func (d DatabaseConfig) DSN() string {
 	return fmt.Sprintf(
 		"postgres://%s:%s@%s:%d/%s?sslmode=%s",
@@ -39,14 +39,19 @@ func (d DatabaseConfig) DSN() string {
 	)
 }
 
-type TelemetryConfig struct {
-	Enabled     bool   `koanf:"enabled"`
-	Endpoint    string `koanf:"endpoint"`
-	ServiceName string `koanf:"service_name"`
+type TVDBConfig struct {
+	APIKey string `koanf:"apikey"`
+	PIN    string `koanf:"pin"`
 }
 
-type TMDBConfig struct {
-	APIKey string `koanf:"apikey"`
+type PluginConfig struct {
+	Path         string            `koanf:"path"`
+	AllowedHosts []string          `koanf:"allowedhosts"`
+	Config       map[string]string `koanf:"config"`
+}
+
+type AuthConfig struct {
+	AdminToken string `koanf:"admintoken"`
 }
 
 type LogConfig struct {
@@ -97,8 +102,8 @@ func (c *Config) validate() error {
 	if c.Database.Database == "" {
 		return fmt.Errorf("database.database is required")
 	}
-	if c.TMDB.APIKey == "" {
-		return fmt.Errorf("tmdb.api_key is required")
+	if len(c.Auth.AdminToken) < 16 {
+		return fmt.Errorf("auth.admintoken of at least 16 characters is required (APP_AUTH_ADMINTOKEN)")
 	}
 	if c.HTTP.Addr == "" {
 		c.HTTP.Addr = ":3000"
@@ -114,9 +119,6 @@ func (c *Config) validate() error {
 	}
 	if c.Log.Level == "" {
 		c.Log.Level = "info"
-	}
-	if c.Telemetry.ServiceName == "" {
-		c.Telemetry.ServiceName = "media-manager"
 	}
 	return nil
 }

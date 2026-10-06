@@ -30,3 +30,8 @@ go.work.sum
 # Editor/IDE
 .idea/
 .vscode/
+.env.local
+
+# Plugins built by scripts/build-plugins.sh
+*.wasm
+*.md

@@ -1,0 +1,191 @@
+@import 'tailwindcss';
+
+@custom-variant dark (&:is(.dark *));
+
+/* Material Design Dark Theme */
+:root {
+	/* Surface: #f8f9fa page, #ffffff cards */
+	--background: #f8f9fa;
+	--foreground: #202124;
+	--card: #ffffff;
+	--card-foreground: #202124;
+	--popover: #ffffff;
+	--popover-foreground: #202124;
+	--primary: #1a73e8;
+	--primary-foreground: #ffffff;
+	--secondary: #e8eaed;
+	--secondary-foreground: #202124;
+	--muted: #f1f3f4;
+	--muted-foreground: #5f6368;
+	--accent: #e8f0fe;
+	--accent-foreground: #1a73e8;
+	--destructive: #d93025;
+	--border: transparent;
+	--input: #e8eaed;
+	--ring: #1a73e8;
+	--chart-1: #1a73e8;
+	--chart-2: #34a853;
+	--chart-3: #fbbc04;
+	--chart-4: #ea4335;
+	--chart-5: #673ab7;
+	--radius: 0.5rem;
+	--sidebar: #ffffff;
+	--sidebar-foreground: #202124;
+	--sidebar-primary: #1a73e8;
+	--sidebar-primary-foreground: #ffffff;
+	--sidebar-accent: #e8f0fe;
+	--sidebar-accent-foreground: #1a73e8;
+	--sidebar-border: transparent;
+	--sidebar-ring: #1a73e8;
+}
+
+.dark {
+	/* Surface: #121212 base, #1e1e1e raised, #2d2d2d higher */
+	--background: #121212;
+	--foreground: #e8eaed;
+	--card: #1e1e1e;
+	--card-foreground: #e8eaed;
+	--popover: #2d2d2d;
+	--popover-foreground: #e8eaed;
+	--primary: #8ab4f8;
+	--primary-foreground: #202124;
+	--secondary: #2d2d2d;
+	--secondary-foreground: #e8eaed;
+	--muted: #2d2d2d;
+	--muted-foreground: #9aa0a6;
+	--accent: #2d2d2d;
+	--accent-foreground: #8ab4f8;
+	--destructive: #f28b82;
+	--border: rgba(255, 255, 255, 0.08);
+	--input: rgba(255, 255, 255, 0.08);
+	--ring: #8ab4f8;
+	--chart-1: #8ab4f8;
+	--chart-2: #81c995;
+	--chart-3: #fdd663;
+	--chart-4: #f28b82;
+	--chart-5: #c58af9;
+	--sidebar: #1e1e1e;
+	--sidebar-foreground: #e8eaed;
+	--sidebar-primary: #8ab4f8;
+	--sidebar-primary-foreground: #202124;
+	--sidebar-accent: rgba(138, 180, 248, 0.08);
+	--sidebar-accent-foreground: #8ab4f8;
+	--sidebar-border: rgba(255, 255, 255, 0.08);
+	--sidebar-ring: #8ab4f8;
+}
+
+@theme inline {
+	--font-sans: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+	--color-sidebar-ring: var(--sidebar-ring);
+	--color-sidebar-border: var(--sidebar-border);
+	--color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+	--color-sidebar-accent: var(--sidebar-accent);
+	--color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+	--color-sidebar-primary: var(--sidebar-primary);
+	--color-sidebar-foreground: var(--sidebar-foreground);
+	--color-sidebar: var(--sidebar);
+	--color-chart-5: var(--chart-5);
+	--color-chart-4: var(--chart-4);
+	--color-chart-3: var(--chart-3);
+	--color-chart-2: var(--chart-2);
+	--color-chart-1: var(--chart-1);
+	--color-ring: var(--ring);
+	--color-input: var(--input);
+	--color-border: var(--border);
+	--color-destructive: var(--destructive);
+	--color-accent-foreground: var(--accent-foreground);
+	--color-accent: var(--accent);
+	--color-muted-foreground: var(--muted-foreground);
+	--color-muted: var(--muted);
+	--color-secondary-foreground: var(--secondary-foreground);
+	--color-secondary: var(--secondary);
+	--color-primary-foreground: var(--primary-foreground);
+	--color-primary: var(--primary);
+	--color-popover-foreground: var(--popover-foreground);
+	--color-popover: var(--popover);
+	--color-card-foreground: var(--card-foreground);
+	--color-card: var(--card);
+	--color-foreground: var(--foreground);
+	--color-background: var(--background);
+	--radius-sm: calc(var(--radius) * 0.6);
+	--radius-md: calc(var(--radius) * 0.8);
+	--radius-lg: var(--radius);
+	--radius-xl: calc(var(--radius) * 1.4);
+	--radius-2xl: calc(var(--radius) * 1.8);
+	--radius-3xl: calc(var(--radius) * 2.2);
+	--radius-4xl: calc(var(--radius) * 2.6);
+}
+
+@layer base {
+	* {
+		@apply border-border outline-ring/50;
+	}
+	body {
+		@apply bg-background text-foreground;
+	}
+	html {
+		@apply font-sans;
+	}
+}
+
+@custom-variant data-open {
+	&:where([data-state="open"]), &:where([data-open]:not([data-open="false"])) {
+		@slot;
+	}
+}
+
+@custom-variant data-closed {
+	&:where([data-state="closed"]), &:where([data-closed]:not([data-closed="false"])) {
+		@slot;
+	}
+}
+
+@custom-variant data-checked {
+	&:where([data-state="checked"]), &:where([data-checked]:not([data-checked="false"])) {
+		@slot;
+	}
+}
+
+@custom-variant data-unchecked {
+	&:where([data-state="unchecked"]), &:where([data-unchecked]:not([data-unchecked="false"])) {
+		@slot;
+	}
+}
+
+@custom-variant data-selected {
+	&:where([data-selected]) {
+		@slot;
+	}
+}
+
+@custom-variant data-disabled {
+	&:where([data-disabled="true"]), &:where([data-disabled]:not([data-disabled="false"])) {
+		@slot;
+	}
+}
+
+@custom-variant data-active {
+	&:where([data-state="active"]), &:where([data-active]:not([data-active="false"])) {
+		@slot;
+	}
+}
+
+@custom-variant data-horizontal {
+	&:where([data-orientation="horizontal"]) {
+		@slot;
+	}
+}
+
+@custom-variant data-vertical {
+	&:where([data-orientation="vertical"]) {
+		@slot;
+	}
+}
+
+@utility no-scrollbar {
+	-ms-overflow-style: none;
+	scrollbar-width: none;
+	&::-webkit-scrollbar {
+		display: none;
+	}
+}
