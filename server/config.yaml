@@ -9,12 +9,13 @@ database:
   database: "my_project_db"
   ssl_mode: "disable"
 
-telemetry:
-  enabled: true
-  endpoint: "localhost:4318"
-
-#tmdb:
-#  api_key: ""
-
 logging:
   level: debug
+plugins:
+  tmdb:
+    path: "plugins/wasm/tmdb/tmdb.wasm"
+    allowedhosts: ["api.themoviedb.org"]
+  tv:
+    path: "plugins/wasm/tv/tv.wasm"
+  movie:
+    path: "plugins/wasm/movie/movie.wasm"
